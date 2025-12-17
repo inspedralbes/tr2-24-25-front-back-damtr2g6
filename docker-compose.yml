@@ -1,0 +1,51 @@
+services:
+  backend:
+    build: ./server
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+    command: npm start
+    networks:
+      - app-network
+
+  frontend:
+    build: ./client
+    ports:
+      - "8080:3000"
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    # Usamos --host para que sea accesible desde fuera del contenedor
+    # y --port para especificar el puerto que nos indicaste
+    command: npm run dev -- --host --port 3000
+    networks:
+      - app-network
+
+  ollama:
+    image: ollama/ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - app-network
+    # Si tienes una GPU NVIDIA, descomenta las siguientes líneas
+    # para acelerar el procesamiento de la IA.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  ollama_data:
