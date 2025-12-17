@@ -9,6 +9,9 @@ services:
     command: npm start
     networks:
       - app-network
+    depends_on:
+      db:
+        condition: service_healthy
 
   frontend:
     build: ./client
@@ -19,29 +22,76 @@ services:
       - /app/node_modules
     depends_on:
       - backend
-    # Usamos --host para que sea accesible desde fuera del contenedor
-    # y --port para especificar el puerto que nos indicaste
     command: npm run dev -- --host --port 3000
     networks:
       - app-network
 
+  db:
+    image: mysql:8.0
+    container_name: mysql_db
+    restart: always
+    environment:
+      MYSQL_DATABASE: datos
+      MYSQL_ROOT_PASSWORD: 1234
+      MYSQL_USER: user
+      MYSQL_PASSWORD: 1234
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_password"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: phpmyadmin_ui
+    restart: always
+    ports:
+      - "8081:80"
+    environment:
+      - PMA_HOST=db
+      - PMA_USER=root
+      - PMA_PASSWORD=1234
+    networks:
+      - app-network
+    depends_on:
+      - db
+
   ollama:
-    image: ollama/ollama
+    image: ollama/ollama:latest
+    container_name: ollama_server
     ports:
       - "11434:11434"
     volumes:
-      - ollama_data:/root/.ollama
+      - ${PATH_DADES:-./ollama_storage}:/root/.ollama
     networks:
       - app-network
-    # Si tienes una GPU NVIDIA, descomenta las siguientes líneas
-    # para acelerar el procesamiento de la IA.
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
+    environment:
+      - MODEL_NAME=${MODEL_NAME:-llama3}
+    entrypoint: [ "/bin/sh", "-c" ]
+    command:
+      - |
+        ollama serve &
+        echo "Esperant que el servidor Ollama estigui actiu..."
+        until ollama list > /dev/null 2>&1; do
+          sleep 2
+        done
+        if ollama list | grep -q "$${MODEL_NAME}"; then
+          echo "El model $${MODEL_NAME} ja està preparat."
+        else
+          echo "Model $${MODEL_NAME} no trobat. Iniciant descàrrega..."
+          until ollama pull $${MODEL_NAME}; do
+            echo "Error en la descàrrega. Reintentant..."
+            sleep 5
+          done
+        fi
+        echo "Tot llest!"
+        wait
 
 networks:
   app-network:
@@ -49,3 +99,4 @@ networks:
 
 volumes:
   ollama_data:
+  db_data: # Añadido volumen persistente para la base de datos

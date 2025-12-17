@@ -1,9 +1,12 @@
 // server.js
 const express = require('express');
 const multer = require('multer');
+const bcrypt = require('bcrypt');
 const cors = require('cors');
 const { extractPIdata } = require('./extractor'); // Funció d'extracció
 const fs = require('fs');
+
+const { sequelize, User } = require('./models/user');
 
 const app = express();
 const port = 4000;
@@ -12,13 +15,57 @@ const port = 4000;
 const upload = multer({ dest: 'uploads/' });
 
 app.use(cors()); // Permet peticions des del frontend de Vue
+app.use(express.json());
+
+sequelize.sync() // Esto crea la tabla si no existe
+  .then(() => console.log('Tablas sincronizadas en MySQL'))
+  .catch(err => console.error('Error al sincronizar:', err));
+
+app.post('/api/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    // 1. Buscar el usuario
+    const user = await User.findOne({ where: { username } });
+    if (!user) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    // 2. Comparar contraseñas
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Contraseña incorrecta' });
+    }
+
+    res.json({ message: '¡Login exitoso!', user: { id: user.id, username: user.username } });
+  } catch (error) {
+    res.status(500).json({ error: 'Error en el servidor' });
+  }
+});
+
+app.post('/api/register', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    const existe = await User.findOne({ where: { username } });
+    if (existe) {
+      return res.status(400).json({ error: 'El nombre de usuario ya está en uso' });
+    }
+
+    await User.create({ username, password });
+
+    res.status(201).json({ message: 'Usuario registrado correctamente' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al registrar el usuario' });
+  }
+});
 
 // Ruta principal de càrrega i processament
 app.post('/upload', upload.single('piFile'), async (req, res) => {
     if (!req.file) {
         return res.status(400).send('No s\'ha pujat cap fitxer.');
     }
-
     const filePath = req.file.path;
 
     try {
