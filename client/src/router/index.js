@@ -9,13 +9,13 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
-      path: '/',
+      path: '/home',
       name: 'home',
       component: Index,
       meta: { requiresAuth: true },
     },
     {
-      path: '/login',
+      path: '/',
       name: 'login',
       component: Login,
     },
@@ -31,7 +31,9 @@ router.beforeEach((to, from, next) => {
   const loggedIn = localStorage.getItem('user');
 
   if (to.matched.some(record => record.meta.requiresAuth) && !loggedIn) {
-    next('/login');
+    next('/');
+  } else if (loggedIn && (to.name === 'login' || to.name === 'register')) {
+    next('/home');
   } else {
     next();
   }

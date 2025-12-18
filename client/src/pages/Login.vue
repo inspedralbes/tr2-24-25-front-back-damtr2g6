@@ -91,8 +91,8 @@ const submitLogin = async () => {
       console.log('Login successful. Storing user data in localStorage.');
       localStorage.setItem('user', JSON.stringify(data.user));
       await nextTick();
-      console.log('Redirecting to /');
-      router.push('/');
+      console.log('Redirecting to /home');
+      router.push('/home');
       console.log('Redirection command issued.');
     } else {
       console.error('Login failed:', data.error);

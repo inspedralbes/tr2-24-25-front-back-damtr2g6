@@ -53,7 +53,7 @@
               variant="text"
               color="primary"
               class="mt-3"
-              @click="router.push('/login')"
+              @click="router.push('/')"
             >
               ¿Ya tienes cuenta? Inicia sesión aquí.
             </v-btn>
@@ -95,7 +95,7 @@ const handleRegister = async () => {
       tipoMensaje.value = 'success';
       mensaje.value = '¡Cuenta creada! Redirigiendo a la página de login...';
       setTimeout(() => {
-        router.push('/login');
+        router.push('/');
       }, 2000);
     } else {
       tipoMensaje.value = 'error';

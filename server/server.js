@@ -17,10 +17,6 @@ const upload = multer({ dest: 'uploads/' });
 app.use(cors()); // Permet peticions des del frontend de Vue
 app.use(express.json());
 
-sequelize.sync() // Esto crea la tabla si no existe
-  .then(() => console.log('Tablas sincronizadas en MySQL'))
-  .catch(err => console.error('Error al sincronizar:', err));
-
 app.post('/api/login', async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -61,7 +57,6 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-// Ruta principal de càrrega i processament
 app.post('/upload', upload.single('piFile'), async (req, res) => {
     if (!req.file) {
         return res.status(400).send('No s\'ha pujat cap fitxer.');
@@ -90,6 +85,13 @@ app.post('/upload', upload.single('piFile'), async (req, res) => {
     }
 });
 
-app.listen(port, () => {
-    console.log(`Servidor Node.js escoltant a http://localhost:${port}`);
-});
+sequelize.sync()
+  .then(() => {
+    console.log('Tablas sincronizadas en MySQL');
+    app.listen(port, () => {
+        console.log(`Servidor Node.js escoltant a http://localhost:${port}`);
+    });
+  })
+  .catch(err => {
+    console.error('Error al sincronizar con la base de datos:', err);
+  });
