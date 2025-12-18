@@ -2,10 +2,8 @@
   <v-container class="fill-height">
     <v-row justify="center">
       <v-col cols="12" sm="8" md="5">
-        <v-card class="elevation-12" rounded="lg">
-          <v-toolbar color="success" dark>
-            <v-toolbar-title>Crear Nueva Cuenta</v-toolbar-title>
-          </v-toolbar>
+        <v-card class="pa-4" rounded="lg">
+          <v-card-title class="text-h5 text-center">Crear Nueva Cuenta</v-card-title>
 
           <v-card-text class="pt-4">
             <v-form ref="form" v-model="isFormValid">
@@ -41,15 +39,23 @@
             </v-alert>
           </v-card-text>
 
-          <v-card-actions class="pb-4 px-4">
+          <v-card-actions class="d-block text-center pb-4 px-4">
             <v-btn
               block
-              color="success"
+              color="primary"
               size="large"
               :disabled="!isFormValid"
               @click="handleRegister"
             >
               Registrarse
+            </v-btn>
+            <v-btn
+              variant="text"
+              color="primary"
+              class="mt-3"
+              @click="router.push('/login')"
+            >
+              ¿Ya tienes cuenta? Inicia sesión aquí.
             </v-btn>
           </v-card-actions>
         </v-card>
@@ -60,7 +66,9 @@
 
 <script setup>
 import { ref } from 'vue';
+import { useRouter } from 'vue-router'; // Import useRouter
 
+const router = useRouter(); // Initialize useRouter
 const isFormValid = ref(false);
 const confirmarPass = ref('');
 const mensaje = ref('');
