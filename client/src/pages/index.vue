@@ -71,6 +71,40 @@
               </div>
             </div>
           </v-card-text>
+          
+          <v-row class="mt-4" align="center">
+            <v-col cols="12" md="8">
+              <v-text-field
+                v-model="ralcValue"
+                label="RALC del Alumno"
+                outlined
+                dense
+                hide-details
+              ></v-text-field>
+            </v-col>
+            <v-col cols="12" md="4">
+              <v-btn
+                block
+                color="success"
+                @click="saveRalc"
+                :disabled="!ralcValue || isSaving"
+                :loading="isSaving"
+              >
+                {{ isSaving ? 'Guardant...' : 'Guardar RALC' }}
+              </v-btn>
+            </v-col>
+          </v-row>
+
+          <v-alert
+            v-if="saveStatus.message"
+            :type="saveStatus.type"
+            class="mt-4"
+            variant="tonal"
+            closable
+            @click:close="saveStatus.message = ''"
+          >
+            {{ saveStatus.message }}
+          </v-alert>
         </v-card>
       </v-col>
     </v-row>
@@ -87,11 +121,16 @@ const extractedData = ref(null);
 const isLoading = ref(false);
 const error = ref(null);
 const apiUrl = 'http://localhost:4000/upload';
+const ralcValue = ref('');
+const isSaving = ref(false);
+const saveStatus = ref({ message: '', type: '' });
 
 const handleFileUpload = (event) => {
   file.value = event.target.files[0];
   extractedData.value = null;
   error.value = null;
+  ralcValue.value = ''; // Reset RALC value when a new file is uploaded
+  saveStatus.value = { message: '', type: '' }; // Reset save status
 };
 
 const uploadFile = async () => {
@@ -100,31 +139,66 @@ const uploadFile = async () => {
   isLoading.value = true;
   error.value = null;
 
-      const formData = new FormData();
-      formData.append('piFile', this.file); 
+  const formData = new FormData();
+  formData.append('piFile', file.value);
 
-      try {
-        const response = await fetch(this.apiUrl, {
-          method: 'POST',
-          body: formData 
-        });
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      body: formData
+    });
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Error del servidor: ${response.status}. Detall: ${errorText.substring(0, 100)}...`);
-        }
-
-        const data = await response.json();
-        this.extractedData = data.data;
-
-      } catch (err) {
-        console.error('Error en la petició o processament:', err);
-        this.error = `No es pot extreure les dades. Assegura't que el servidor Node/Ollama està en marxa. Detall: ${err.message}`;
-        this.extractedData = null;
-      } finally {
-        this.isLoading = false;
-      }
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Error del servidor: ${response.status}. Detall: ${errorText.substring(0, 100)}...`);
     }
+
+    const data = await response.json();
+    extractedData.value = data.data;
+
+  } catch (err) {
+    console.error('Error en la petició o processament:', err);
+    error.value = `No es pot extreure les dades. Assegura't que el servidor Node/Ollama està en marxa. Detall: ${err.message}`;
+    extractedData.value = null;
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const saveRalc = async () => {
+  if (!ralcValue.value || !extractedData.value) return;
+
+  isSaving.value = true;
+  saveStatus.value = { message: '', type: '' };
+
+  try {
+    const response = await fetch('http://localhost:4000/save-data', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ralc: ralcValue.value,
+        orientacions: extractedData.value.orientacions,
+        adaptacions: extractedData.value.adaptacionsGenerals,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || 'Error desconegut del servidor.');
+    }
+    
+    saveStatus.value = { message: 'Dades guardades amb èxit!', type: 'success' };
+
+  } catch (err) {
+    console.error('Error al guardar les dades:', err);
+    saveStatus.value = { message: `Error al guardar: ${err.message}`, type: 'error' };
+  } finally {
+    isSaving.value = false;
+  }
+};
 
 const logout = () => {
   localStorage.removeItem('user');
