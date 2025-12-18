@@ -77,28 +77,28 @@
   </v-container>
 </template>
 
-<script>
-export default {
-  data() {
-    return {
-      file: null,
-      extractedData: null,
-      isLoading: false,
-      error: null,
-      apiUrl: 'http://localhost:4000/upload' // URL del teu servidor Node.js
-    };
-  },
-  methods: {
-    handleFileUpload(event) {
-      this.file = event.target.files[0];
-      this.extractedData = null;
-      this.error = null;
-    },
-    async uploadFile() {
-      if (!this.file) return;
+<script setup>
+import { ref } from 'vue';
+import { useRouter } from 'vue-router';
 
-      this.isLoading = true;
-      this.error = null;
+const router = useRouter();
+const file = ref(null);
+const extractedData = ref(null);
+const isLoading = ref(false);
+const error = ref(null);
+const apiUrl = 'http://localhost:4000/upload';
+
+const handleFileUpload = (event) => {
+  file.value = event.target.files[0];
+  extractedData.value = null;
+  error.value = null;
+};
+
+const uploadFile = async () => {
+  if (!file.value) return;
+
+  isLoading.value = true;
+  error.value = null;
 
       const formData = new FormData();
       formData.append('piFile', this.file); 
@@ -126,6 +126,11 @@ export default {
       }
     }
   }
+};
+
+const logout = () => {
+  localStorage.removeItem('user');
+  router.push('/login');
 };
 </script>
 

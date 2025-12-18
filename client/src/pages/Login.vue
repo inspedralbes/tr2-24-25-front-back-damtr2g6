@@ -49,6 +49,16 @@
               ¿No tienes cuenta? Regístrate aquí.
             </v-btn>
           </v-card-actions>
+          <v-card-actions class="pb-4 px-4">
+            <v-btn
+              block
+              color="secondary"
+              size="large"
+              @click="redirectToRegister"
+            >
+              No tienes cuenta? Regístrate
+            </v-btn>
+          </v-card-actions>
         </v-card>
       </v-col>
     </v-row>
@@ -56,7 +66,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
@@ -67,8 +77,14 @@ const credentials = ref({
   password: ''
 });
 
+const redirectToRegister = () => {
+  router.push('/register');
+};
+
 const submitLogin = async () => {
   errorMessage.value = '';
+  console.log('Attempting to log in with:', credentials.value);
+  console.log('Available routes:', router.getRoutes());
   
   try {
     const response = await fetch('http://localhost:4000/api/login', {
@@ -77,14 +93,23 @@ const submitLogin = async () => {
       body: JSON.stringify(credentials.value)
     });
 
+    console.log('Received response from server:', response);
     const data = await response.json();
+    console.log('Response data:', data);
 
     if (response.ok) {
-      router.push('/')
+      console.log('Login successful. Storing user data in localStorage.');
+      localStorage.setItem('user', JSON.stringify(data.user));
+      await nextTick();
+      console.log('Redirecting to /');
+      router.push('/');
+      console.log('Redirection command issued.');
     } else {
+      console.error('Login failed:', data.error);
       errorMessage.value = data.error || 'Error desconocido';
     }
   } catch (error) {
+    console.error('An error occurred during login:', error);
     errorMessage.value = 'No se pudo conectar con el servidor';
   }
 };

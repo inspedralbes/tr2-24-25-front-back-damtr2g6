@@ -93,10 +93,10 @@ const handleRegister = async () => {
 
     if (response.ok) {
       tipoMensaje.value = 'success';
-      mensaje.value = '¡Cuenta creada! Ya puedes iniciar sesión.';
-      formData.value.username = '';
-      formData.value.password = '';
-      confirmarPass.value = '';
+      mensaje.value = '¡Cuenta creada! Redirigiendo a la página de login...';
+      setTimeout(() => {
+        router.push('/login');
+      }, 2000);
     } else {
       tipoMensaje.value = 'error';
       mensaje.value = data.error || 'Error en el registro';
