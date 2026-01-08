@@ -83,7 +83,8 @@ const handleRegister = async () => {
   mensaje.value = '';
   
   try {
-    const response = await fetch('http://localhost:4000/api/register', {
+    //const response = await fetch('http://localhost:4000/api/register', {
+    const response = await fetch('http://10.0.2.2:4000/api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(formData.value)

@@ -86,7 +86,9 @@ const file = ref(null);
 const extractedData = ref(null);
 const isLoading = ref(false);
 const error = ref(null);
-const apiUrl = 'http://localhost:4000/upload';
+// const apiUrl = 'http://localhost:4000/upload';
+const apiUrl = 'http://10.0.2.2:4000/upload';
+
 
 const handleFileUpload = (event) => {
   file.value = event.target.files[0];
