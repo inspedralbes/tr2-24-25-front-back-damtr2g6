@@ -11,7 +11,7 @@ const { sequelize, User } = require('./models/user');
 const app = express();
 const port = 4000;
 
-// Configura Multer per a la càrrega de fitxers
+// Configura Multer per a la càrrega de fitxer
 const upload = multer({ dest: 'uploads/' });
 
 app.use(cors()); // Permet peticions des del frontend de Vue
@@ -88,7 +88,7 @@ app.post('/upload', upload.single('piFile'), async (req, res) => {
 sequelize.sync()
   .then(() => {
     console.log('Tablas sincronizadas en MySQL');
-    app.listen(port, () => {
+    app.listen(port, '0.0.0.0', () => {
         console.log(`Servidor Node.js escoltant a http://localhost:${port}`);
     });
   })
