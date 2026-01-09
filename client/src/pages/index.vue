@@ -35,57 +35,79 @@
           </v-alert>
         </v-card>
 
-        <v-card v-if="extractedData" class="mt-6 pa-4">
-          <v-card-title class="text-h6">
-            ✅ Dades Extretes Correctament
-          </v-card-title>
+        <StudentDataDisplay v-if="extractedData" :student-data="extractedData" />
 
-          <v-card-text>
-            <div class="mb-4">
-              <p class="font-weight-bold">Dades de l'Alumne</p>
-              <v-divider class="my-2"></v-divider>
-              <p><strong>Nom i Cognoms:</strong> {{ extractedData.dadesAlumne?.nomCognoms || 'N/D' }}</p>
-              <p><strong>Data de Naixement:</strong> {{ extractedData.dadesAlumne?.dataNaixement || 'N/D' }}</p>
-              <p><strong>Curs:</strong> {{ extractedData.dadesAlumne?.curs || 'N/D' }}</p>
+        <div v-if="extractedData">
+             <!-- Secció per guardar a la Base de Dades (només si hi ha dades) -->
+            <div v-if="Object.keys(extractedData).length > 0" class="mt-6 pa-4 border rounded">
+              <h3 class="text-h6 mb-2">Guardar a la Base de Dades</h3>
+              <v-text-field
+                v-model="ralc"
+                label="Introdueix el RALC de l'alumne"
+                placeholder="Ex: 1234567890"
+                variant="outlined"
+                density="compact"
+                hide-details="auto"
+                class="mb-2"
+              ></v-text-field>
+              <v-btn
+                color="success"
+                block
+                :loading="isSaving"
+                :disabled="!ralc"
+                @click="saveToDatabase"
+              >
+                Guardar Dades
+              </v-btn>
             </div>
 
-            <div class="mb-4">
-              <p class="font-weight-bold">Motiu / Diagnòstic</p>
-              <v-divider class="my-2"></v-divider>
-              <p class="font-italic">{{ extractedData.motiu?.diagnostic || 'N/D' }}</p>
-            </div>
-
-            <div v-if="extractedData.adaptacionsGenerals && extractedData.adaptacionsGenerals.length" class="mb-4">
-              <p class="font-weight-bold">Adaptacions Generals Proposades (Sí)</p>
-              <v-divider class="my-2"></v-divider>
-              <ul class="pl-5">
-                <li v-for="(adaptacio, index) in extractedData.adaptacionsGenerals" :key="'A'+index">{{ adaptacio }}</li>
-              </ul>
-            </div>
-
-            <div v-if="extractedData.orientacions && extractedData.orientacions.length">
-              <p class="font-weight-bold">Orientacions</p>
-              <v-divider class="my-2"></v-divider>
-              <div v-for="(orientacio, index) in extractedData.orientacions" :key="'O'+index" class="mb-2">
-                {{ index + 1 }}. {{ orientacio }}
-              </div>
-            </div>
-          </v-card-text>
-        </v-card>
+       </div>
       </v-col>
     </v-row>
+
+
+    <!-- Success Dialog -->
+    <v-dialog v-model="showSuccessDialog" max-width="500" persistent>
+      <v-card class="text-center pa-6">
+        <v-icon
+          icon="mdi-check-circle"
+          color="success"
+          size="100"
+          class="mb-4"
+        ></v-icon>
+        <v-card-title class="text-h5 font-weight-bold text-success mb-2">
+          ALUMNE INTRODUIT CORRECTAMENT
+        </v-card-title>
+        <v-card-text class="text-body-1 text-medium-emphasis mb-6">
+          Les dades s'han guardat exitosament a la base de dades.
+        </v-card-text>
+        <v-btn
+          color="primary"
+          size="large"
+          block
+          rounded="pill"
+          @click="resetState"
+        >
+          Tornar a l'inici
+        </v-btn>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
 <script setup>
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
+import StudentDataDisplay from '@/components/StudentDataDisplay.vue';
 
 const router = useRouter();
 const file = ref(null);
 const extractedData = ref(null);
 const isLoading = ref(false);
 const error = ref(null);
+const ralc = ref('');
+const isSaving = ref(false);
+const showSuccessDialog = ref(false);
 const apiUrl = 'http://localhost:4000/upload';
 
 const handleFileUpload = (event) => {
@@ -125,6 +147,46 @@ const uploadFile = async () => {
         isLoading.value = false;
       }
     }
+
+const saveToDatabase = async () => {
+  if (!ralc.value) return;
+  isSaving.value = true;
+  error.value = null;
+
+  try {
+    const response = await fetch('http://localhost:4000/api/students', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ralc: ralc.value,
+        extractedData: extractedData.value
+      })
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      showSuccessDialog.value = true; // Mostrar popup en lloc d'alert
+    } else {
+      throw new Error(data.error || 'Error desconegut al guardar');
+    }
+  } catch (err) {
+    error.value = 'Error guardant a la BD: ' + err.message;
+  } finally {
+    isSaving.value = false;
+  }
+};
+
+const resetState = () => {
+  file.value = null;
+  extractedData.value = null;
+  ralc.value = '';
+  error.value = null;
+  showSuccessDialog.value = false;
+  // Opcional: Si vols recarregar la pàgina completament:
+  // window.location.reload(); 
+  // Però reiniciar l'estat és més ràpid i "SPA-friendly".
+};
 
 const logout = () => {
   localStorage.removeItem('user');
