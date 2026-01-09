@@ -44,15 +44,15 @@
             <div class="mb-4">
               <p class="font-weight-bold">Dades de l'Alumne</p>
               <v-divider class="my-2"></v-divider>
-              <p><strong>Nom i Cognoms:</strong> {{ extractedData.dadesAlumne.nomCognoms || 'N/D' }}</p>
-              <p><strong>Data de Naixement:</strong> {{ extractedData.dadesAlumne.dataNaixement || 'N/D' }}</p>
-              <p><strong>Curs:</strong> {{ extractedData.dadesAlumne.curs || 'N/D' }}</p>
+              <p><strong>Nom i Cognoms:</strong> {{ extractedData.dadesAlumne?.nomCognoms || 'N/D' }}</p>
+              <p><strong>Data de Naixement:</strong> {{ extractedData.dadesAlumne?.dataNaixement || 'N/D' }}</p>
+              <p><strong>Curs:</strong> {{ extractedData.dadesAlumne?.curs || 'N/D' }}</p>
             </div>
 
             <div class="mb-4">
               <p class="font-weight-bold">Motiu / Diagnòstic</p>
               <v-divider class="my-2"></v-divider>
-              <p class="font-italic">{{ extractedData.motiu.diagnostic || 'N/D' }}</p>
+              <p class="font-italic">{{ extractedData.motiu?.diagnostic || 'N/D' }}</p>
             </div>
 
             <div v-if="extractedData.adaptacionsGenerals && extractedData.adaptacionsGenerals.length" class="mb-4">
@@ -101,10 +101,10 @@ const uploadFile = async () => {
   error.value = null;
 
       const formData = new FormData();
-      formData.append('piFile', this.file); 
+      formData.append('piFile', file.value); 
 
       try {
-        const response = await fetch(this.apiUrl, {
+        const response = await fetch(apiUrl, {
           method: 'POST',
           body: formData 
         });
@@ -115,14 +115,14 @@ const uploadFile = async () => {
         }
 
         const data = await response.json();
-        this.extractedData = data.data;
+        extractedData.value = data.data;
 
       } catch (err) {
         console.error('Error en la petició o processament:', err);
-        this.error = `No es pot extreure les dades. Assegura't que el servidor Node/Ollama està en marxa. Detall: ${err.message}`;
-        this.extractedData = null;
+        error.value = `No es pot extreure les dades. Assegura't que el servidor Node/Ollama està en marxa. Detall: ${err.message}`;
+        extractedData.value = null;
       } finally {
-        this.isLoading = false;
+        isLoading.value = false;
       }
     }
 

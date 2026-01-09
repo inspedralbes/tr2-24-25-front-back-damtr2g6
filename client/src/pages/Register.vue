@@ -95,8 +95,8 @@ const handleRegister = async () => {
       tipoMensaje.value = 'success';
       mensaje.value = '¡Cuenta creada! Redirigiendo a la página de login...';
       setTimeout(() => {
-        router.push('/');
-      }, 2000);
+        router.push({ name: 'login' });
+      }, 1500);
     } else {
       tipoMensaje.value = 'error';
       mensaje.value = data.error || 'Error en el registro';

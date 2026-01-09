@@ -3,7 +3,7 @@ const mammoth = require('mammoth');
 const fs = require('fs');
 
 const OLLAMA_URL = 'http://ollama:11434/api/generate';
-const MODEL_NAME = 'mistral'; 
+const MODEL_NAME = process.env.MODEL_NAME || 'llama3.2:3b';
 
 /**
  * Extreu la informació del PI utilitzant Ollama i l'API fetch nativa de Node.js.
@@ -14,51 +14,67 @@ async function extractPIdata(filePath) {
     let rawText;
     try {
         const result = await mammoth.extractRawText({ path: filePath });
-        rawText = result.value; 
+        rawText = result.value;
     } catch (e) {
         throw new Error("Error en la conversió del DOCX a text pla: " + e.message);
     }
-    
+
     // 2. PROMPT: La instrucció clau per a l'extracció
     const prompt = `
-        Ets un expert en documents educatius (Pla Individualitzat).
-        Analitza el següent text, extreu totes les dades clau i retorna NOMÉS i EXCLUSIVAMENT
-        un objecte JSON amb l'estructura requerida. No incloguis cap text, capítol, ni explicació addicional.
+        You are an expert data extractor.
 
-        // ESTRUCTURA JSON REQUERIDA (OBLIGATÒRIA):
+        ### INSTRUCTION
+        Analyze the "DOCUMENT TEXT" below and extract the required information into a JSON object.
+        - Use EXACT values found in the text.
+        - If a value is not found, use null.
+        - Output ONLY valid JSON.
+
+        ### REQUIRED JSON STRUCTURE
         {
           "dadesAlumne": {
-            "nomCognoms": "string",
-            "dataNaixement": "string (DD/MM/AAAA)",
-            "curs": "string (p. ex., 4t d’ESO)"
+            "nomCognoms": "Name Surnames",
+            "dataNaixement": "DD/MM/YYYY",
+            "curs": "Course Name"
           },
           "motiu": {
-            "diagnostic": "string"
+            "diagnostic": "Diagnosis or Reason"
           },
-          "adaptacionsGenerals": ["string"],
-          "orientacions": ["string"]
+          "adaptacionsGenerals": ["Adaptation 1", "Adaptation 2"],
+          "orientacions": ["Orientation 1", "Orientation 2"]
         }
 
-        // CONTINGUT DEL PI:
-        ---
+        ### EXAMPLE (For Reference Only - DO NOT COPY)
+        Input Text: "L'alumne Pau Vila nascut el 01/01/2010 fa 1r d'ESO..."
+        Output JSON: {"dadesAlumne": {"nomCognoms": "Pau Vila", ...}}
+
+        ### DOCUMENT TEXT (Analyze this):
+        """
         ${rawText}
-        ---
+        """
+
+        ### YOUR JSON OUTPUT:
     `;
 
     // 3. CRIDA A L'API LOCAL D'OLLAMA utilitzant fetch natiu
     try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minuts timeout
+
         const response = await fetch(OLLAMA_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
             body: JSON.stringify({
                 model: MODEL_NAME,
                 prompt: prompt,
                 stream: false, // Esperar la resposta completa
+                format: 'json', // Forçar sortida JSON
                 options: {
                     temperature: 0.01 // Baixa temperatura per resultats deterministes
                 }
             })
         });
+        clearTimeout(timeoutId);
 
         // Maneig d'errors HTTP
         if (!response.ok) {
@@ -67,14 +83,20 @@ async function extractPIdata(filePath) {
         }
 
         const data = await response.json();
-        
+
         // Ollama retorna un objecte on el resultat de l'IA és dins de la propietat 'response'
-        const jsonText = data.response.trim(); 
-        
+        const jsonText = data.response.trim();
+
         // Neteja l'embolcall de codi si l'IA l'ha afegit (p. ex., ```json ... ```)
         const cleanJsonText = jsonText.replace(/^```json\s*|^\s*```|```$|\s*```$/g, '');
 
         // Parseja i retorna el JSON
+        console.log("--- DEBUG: RAW TEXT FROM DOCX ---");
+        console.log(rawText.substring(0, 500) + "..."); // Print first 500 chars
+
+        console.log("--- DEBUG: AI RAW RESPONSE ---");
+        console.log(jsonText);
+
         return JSON.parse(cleanJsonText);
 
     } catch (error) {
