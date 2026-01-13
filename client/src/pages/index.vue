@@ -10,8 +10,14 @@
             (Amb IA Local)
           </v-card-subtitle>
 
-          <v-file-input v-model="file" label="Selecciona un fitxer .docx" accept=".docx" outlined dense
-            @change="handleFileUpload"></v-file-input>
+          <v-file-input
+            v-model="file"
+            label="Selecciona un fitxer .pdf"
+            accept=".pdf"
+            outlined
+            dense
+            @change="handleFileUpload"
+          ></v-file-input>
 
           <v-btn block color="primary" :disabled="!file || isLoading" :loading="isLoading" @click="uploadFile"
             class="mt-4">
