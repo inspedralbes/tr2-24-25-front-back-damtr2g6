@@ -1,5 +1,5 @@
 // extractor.js (ADAPTAT PER OLLAMA i FETCH NATIU DE NODE)
-const mammoth = require('mammoth');
+const pdf = require('pdf-parse');
 const fs = require('fs');
 
 const OLLAMA_URL = 'http://ollama:11434/api/generate';
@@ -7,27 +7,31 @@ const MODEL_NAME = process.env.MODEL_NAME || 'llama3.2:3b';
 
 /**
  * Extreu la informació del PI utilitzant Ollama i l'API fetch nativa de Node.js.
- * @param {string} filePath - La ruta del fitxer DOCX.
+ * @param {string} filePath - La ruta del fitxer PDF.
  * @returns {Promise<object>} - Un objecte JSON estructurat.
  */
 async function extractPIdata(filePath) {
     let rawText;
     try {
-        const result = await mammoth.extractRawText({ path: filePath });
-        rawText = result.value;
+        const dataBuffer = fs.readFileSync(filePath);
+        const data = await pdf(dataBuffer);
+        rawText = data.text;
     } catch (e) {
-        throw new Error("Error en la conversió del DOCX a text pla: " + e.message);
+        throw new Error("Error en la conversió del PDF a text pla: " + e.message);
     }
 
     // 2. PROMPT: La instrucció clau per a l'extracció
     const prompt = `
-        You are an expert data extractor.
+        You are a highly specialized data extraction bot. Your ONLY function is to extract specific data from a given text and return it in a precise JSON format.
 
-        ### INSTRUCTION
-        Analyze the "DOCUMENT TEXT" below and extract the required information into a JSON object.
-        - Use EXACT values found in the text.
-        - If a value is not found, use null.
-        - Output ONLY valid JSON.
+        ### PRIMARY DIRECTIVE
+        Carefully analyze the "DOCUMENT TEXT" provided below. Your task is to populate the "REQUIRED JSON STRUCTURE" with the corresponding information found in the text.
+
+        ### RULES
+        1.  **STICK TO THE STRUCTURE:** You MUST use the exact JSON structure provided in "REQUIRED JSON STRUCTURE". Do not add, remove, or rename any fields.
+        2.  **EXTRACT EXACT VALUES:** Values in the JSON should be the EXACT text found in the document.
+        3.  **HANDLE MISSING DATA:** If a specific piece of information cannot be found in the "DOCUMENT TEXT", you MUST use the value \`null\` for that field. Do not guess or invent information. For empty arrays, use \`[]\`.
+        4.  **JSON ONLY OUTPUT:** Your entire output must be a single, valid JSON object, and nothing else. Do not add any explanatory text, markdown, or any characters before or after the JSON object.
 
         ### REQUIRED JSON STRUCTURE
         {
@@ -91,8 +95,8 @@ async function extractPIdata(filePath) {
         const cleanJsonText = jsonText.replace(/^```json\s*|^\s*```|```$|\s*```$/g, '');
 
         // Parseja i retorna el JSON
-        console.log("--- DEBUG: RAW TEXT FROM DOCX ---");
-        console.log(rawText.substring(0, 500) + "..."); // Print first 500 chars
+        console.log("--- DEBUG: RAW TEXT FROM PDF ---");
+        console.log(rawText);
 
         console.log("--- DEBUG: AI RAW RESPONSE ---");
         console.log(jsonText);
