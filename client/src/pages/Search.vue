@@ -7,23 +7,10 @@
             Cercador d'Alumnes
           </v-card-title>
           <v-card-text>
-            <v-text-field
-              v-model="ralcSearch"
-              label="Introdueix el RALC"
-              placeholder="Ex: 1234567890"
-              append-inner-icon="mdi-magnify"
-              variant="outlined"
-              @keyup.enter="searchStudent"
-            ></v-text-field>
-            <v-btn
-              block
-              color="primary"
-              size="large"
-              class="mt-4"
-              :loading="isLoading"
-              :disabled="!ralcSearch"
-              @click="searchStudent"
-            >
+            <v-text-field v-model="ralcSearch" label="Introdueix el RALC" placeholder="Ex: 1234567890"
+              append-inner-icon="mdi-magnify" variant="outlined" @keyup.enter="searchStudent"></v-text-field>
+            <v-btn block color="primary" size="large" class="mt-4" :loading="isLoading" :disabled="!ralcSearch"
+              @click="searchStudent">
               Buscar Alumne
             </v-btn>
           </v-card-text>
@@ -57,7 +44,7 @@ const searchStudent = async () => {
 
   try {
     const response = await fetch(`http://localhost:4000/api/students/${ralcSearch.value}`);
-    
+
     if (!response.ok) {
       if (response.status === 404) {
         throw new Error('No s\'ha trobat cap alumne amb aquest RALC.');
@@ -67,7 +54,7 @@ const searchStudent = async () => {
 
     const data = await response.json();
     studentData.value = data;
-    
+
   } catch (err) {
     error.value = err.message;
   } finally {

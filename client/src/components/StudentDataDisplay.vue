@@ -23,14 +23,14 @@
         <p class="font-weight-bold">Adaptacions Generals Proposades (Sí)</p>
         <v-divider class="my-2"></v-divider>
         <ul class="pl-5">
-          <li v-for="(adaptacio, index) in studentData.adaptacionsGenerals" :key="'A'+index">{{ adaptacio }}</li>
+          <li v-for="(adaptacio, index) in studentData.adaptacionsGenerals" :key="'A' + index">{{ adaptacio }}</li>
         </ul>
       </div>
 
       <div v-if="studentData.orientacions && studentData.orientacions.length">
         <p class="font-weight-bold">Orientacions</p>
         <v-divider class="my-2"></v-divider>
-        <div v-for="(orientacio, index) in studentData.orientacions" :key="'O'+index" class="mb-2">
+        <div v-for="(orientacio, index) in studentData.orientacions" :key="'O' + index" class="mb-2">
           {{ index + 1 }}. {{ orientacio }}
         </div>
       </div>

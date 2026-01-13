@@ -3,35 +3,19 @@
     <v-row justify="center">
       <v-col cols="12" sm="8" md="5">
         <v-card class="pa-4" rounded="lg">
-          <v-card-title class="text-h5 text-center">Crear Nueva Cuenta</v-card-title>
+          <v-card-title class="text-h5 text-center">Crear Nova Compte</v-card-title>
 
           <v-card-text class="pt-4">
             <v-form ref="form" v-model="isFormValid">
-              <v-text-field
-                v-model="formData.username"
-                label="Nombre de Usuario"
-                prepend-inner-icon="mdi-account-plus"
-                variant="outlined"
-                :rules="[v => !!v || 'El usuario es obligatorio']"
-              ></v-text-field>
+              <v-text-field v-model="formData.username" label="Nombre de Usuario" prepend-inner-icon="mdi-account-plus"
+                variant="outlined" :rules="[v => !!v || 'El usuario es obligatorio']"></v-text-field>
 
-              <v-text-field
-                v-model="formData.password"
-                label="Contraseña"
-                prepend-inner-icon="mdi-lock"
-                type="password"
-                variant="outlined"
-                :rules="[v => !!v || 'La contraseña es obligatoria']"
-              ></v-text-field>
+              <v-text-field v-model="formData.password" label="Contraseña" prepend-inner-icon="mdi-lock" type="password"
+                variant="outlined" :rules="[v => !!v || 'La contrasenya es obligatoria']"></v-text-field>
 
-              <v-text-field
-                v-model="confirmarPass"
-                label="Repetir Contraseña"
-                prepend-inner-icon="mdi-lock-check"
-                type="password"
-                variant="outlined"
-                :rules="[v => v === formData.password || 'Las contraseñas no coinciden']"
-              ></v-text-field>
+              <v-text-field v-model="confirmarPass" label="Repetir Contrasenya" prepend-inner-icon="mdi-lock-check"
+                type="password" variant="outlined"
+                :rules="[v => v === formData.password || 'Les contrasenyes no coincideixen']"></v-text-field>
             </v-form>
 
             <v-alert v-if="mensaje" :type="tipoMensaje" class="mt-3" variant="tonal">
@@ -40,22 +24,11 @@
           </v-card-text>
 
           <v-card-actions class="d-block text-center pb-4 px-4">
-            <v-btn
-              block
-              color="primary"
-              size="large"
-              :disabled="!isFormValid"
-              @click="handleRegister"
-            >
-              Registrarse
+            <v-btn block color="primary" size="large" :disabled="!isFormValid" @click="handleRegister">
+              Registrar-se
             </v-btn>
-            <v-btn
-              variant="text"
-              color="primary"
-              class="mt-3"
-              @click="router.push('/')"
-            >
-              ¿Ya tienes cuenta? Inicia sesión aquí.
+            <v-btn variant="text" color="primary" class="mt-3" @click="router.push('/')">
+              ¿Ja tens compte? Inicia sessió aquí.
             </v-btn>
           </v-card-actions>
         </v-card>
@@ -81,7 +54,7 @@ const formData = ref({
 
 const handleRegister = async () => {
   mensaje.value = '';
-  
+
   try {
     const response = await fetch('http://localhost:4000/api/register', {
       method: 'POST',
