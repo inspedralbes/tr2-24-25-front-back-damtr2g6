@@ -62,5 +62,20 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    watch: {
+      usePolling: true,
+    },
+    proxy: {
+      '/api': {
+        target: 'http://backend:4000',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/upload': {
+        target: 'http://backend:4000',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
 })

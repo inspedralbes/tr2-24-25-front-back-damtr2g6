@@ -78,7 +78,7 @@ const error = ref(null);
 const ralc = ref('');
 const isSaving = ref(false);
 const showSuccessDialog = ref(false);
-const apiUrl = 'http://localhost:4000/upload';
+const apiUrl = '/upload';
 
 const handleFileUpload = (event) => {
   file.value = event.target.files[0];
@@ -124,7 +124,7 @@ const saveToDatabase = async () => {
   error.value = null;
 
   try {
-    const response = await fetch('http://localhost:4000/api/students', {
+    const response = await fetch('/api/students', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

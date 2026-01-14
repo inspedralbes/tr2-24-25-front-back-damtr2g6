@@ -36,17 +36,7 @@ services:
       MYSQL_USER: user
       MYSQL_PASSWORD: 1234
     healthcheck:
-      test:
-        [
-          "CMD",
-          "mysqladmin",
-          "ping",
-          "-h",
-          "localhost",
-          "-u",
-          "root",
-          "-proot_password",
-        ]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p1234" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -83,7 +73,7 @@ services:
       - app-network
     environment:
       - MODEL_NAME=${MODEL_NAME:-llama3.2:3b}
-    entrypoint: ["/bin/sh", "-c"]
+    entrypoint: [ "/bin/sh", "-c" ]
     command:
       - |
         ollama serve &

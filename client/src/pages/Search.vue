@@ -43,8 +43,8 @@ const searchStudent = async () => {
   studentData.value = null;
 
   try {
-    const response = await fetch(`http://localhost:4000/api/students/${ralcSearch.value}`);
-
+    const response = await fetch(`/api/students/${ralcSearch.value}`);
+    
     if (!response.ok) {
       if (response.status === 404) {
         throw new Error('No s\'ha trobat cap alumne amb aquest RALC.');
