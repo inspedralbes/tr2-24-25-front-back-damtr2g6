@@ -7,6 +7,20 @@
           
           <v-card-text class="pt-4">
             <v-form ref="form" v-model="isFormValid">
+              <v-autocomplete
+                v-model="credentials.center_code"
+                :items="centros"
+                item-title="displayName"
+                item-value="code"
+                label="Selecciona tu centro"
+                prepend-inner-icon="mdi-domain"
+                variant="outlined"
+                :rules="[v => !!v || 'El centro es obligatorio']"
+                :loading="loadingCentros"
+                no-data-text="No se encontraron centros"
+                placeholder="Escribe para buscar..."
+              ></v-autocomplete>
+
               <v-text-field
                 v-model="credentials.username"
                 label="Nombre de usuario"
@@ -44,7 +58,7 @@
               variant="text"
               color="primary"
               class="mt-3"
-              @click="router.push('/register')"
+              @click="redirectToRegister"
             >
               ¿No tienes cuenta? Regístrate aquí.
             </v-btn>
@@ -56,7 +70,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick } from 'vue';
+import { ref, nextTick, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
@@ -64,7 +78,41 @@ const isFormValid = ref(false);
 const errorMessage = ref('');
 const credentials = ref({
   username: '',
-  password: ''
+  password: '',
+  center_code: null
+});
+
+const centros = ref([]);
+const loadingCentros = ref(false);
+
+const fetchCentros = async () => {
+  loadingCentros.value = true;
+  errorMessage.value = ''; // Reset error
+  try {
+    // Usamos ruta relativa para que funcione el Proxy de Vite (ver vite.config.mjs)
+    const url = `/api/centros?t=${Date.now()}`;
+    const res = await fetch(url);
+    
+    if (!res.ok) throw new Error(`Error HTTP: ${res.status}`);
+    const data = await res.json();
+    centros.value = data.map(c => ({
+        ...c,
+        displayName: `${c.name} (${c.code})`
+    }));
+    
+    if (centros.value.length === 0) {
+      console.warn("Recibido array vacío de centros");
+    }
+  } catch (error) {
+    console.error("Error fetching centros:", error);
+    errorMessage.value = `Error conectando con el servidor: ${error.message}. Asegúrate de que el backend (localhost:4000) esté funcionando.`;
+  } finally {
+    loadingCentros.value = false;
+  }
+};
+
+onMounted(() => {
+  fetchCentros();
 });
 
 const redirectToRegister = () => {
@@ -77,7 +125,7 @@ const submitLogin = async () => {
   console.log('Available routes:', router.getRoutes());
   
   try {
-    const response = await fetch('http://localhost:4000/api/login', {
+    const response = await fetch('/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(credentials.value)
@@ -92,7 +140,7 @@ const submitLogin = async () => {
       localStorage.setItem('user', JSON.stringify(data.user));
       await nextTick();
       console.log('Redirecting to /home');
-      router.push('/home');
+      router.push('/home'); 
       console.log('Redirection command issued.');
     } else {
       console.error('Login failed:', data.error);

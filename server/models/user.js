@@ -16,6 +16,26 @@ const User = sequelize.define('User', {
   password: {
     type: DataTypes.STRING,
     allowNull: false
+  },
+  center_code: {
+    type: DataTypes.STRING, // o INTEGER, dependiento de cómo esté en el JSON
+    allowNull: false
+  },
+  email: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true,
+    validate: {
+      isEmail: true
+    }
+  },
+  verificationCode: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  isVerified: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
   }
 }, {
   hooks: {
