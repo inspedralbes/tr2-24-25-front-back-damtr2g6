@@ -1,11 +1,18 @@
 const { Sequelize, DataTypes } = require('sequelize');
 const bcrypt = require('bcrypt');
+require('dotenv').config(); 
 
-// Configuración de la conexión (usa los datos del docker-compose)
-const sequelize = new Sequelize('datos', 'root', '1234', {
-  host: 'db', // Nombre del servicio en Docker
-  dialect: 'mysql'
-});
+// Configuración de la conexión (AHORA ES DINÁMICA)
+// Intenta leer del .env. Si no encuentra nada, usa los valores fijos (el 'fallback')
+const sequelize = new Sequelize(
+  process.env.MYSQL_DATABASE || 'datos',   
+  process.env.MYSQL_USER || 'root',         
+  process.env.MYSQL_PASSWORD || '1234',      
+  {
+    host: process.env.MYSQL_HOST || 'db',   
+    dialect: 'mysql',
+  }
+);
 
 const User = sequelize.define('User', {
   username: {
@@ -18,7 +25,7 @@ const User = sequelize.define('User', {
     allowNull: false
   },
   center_code: {
-    type: DataTypes.STRING, // o INTEGER, dependiento de cómo esté en el JSON
+    type: DataTypes.STRING,
     allowNull: false
   },
   email: {
