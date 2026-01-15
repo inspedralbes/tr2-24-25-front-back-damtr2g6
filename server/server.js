@@ -38,15 +38,34 @@ app.use(express.json());
 
 // CONFIGURACIÓN EMAIL TRANSPORTER
 
+// const transporter = nodemailer.createTransport({
+//     service: 'gmail',
+//     auth: {
+//         user: process.env.SMTP_USER,
+//         pass: process.env.SMTP_PASS
+//     },
+//     tls: {
+//         rejectUnauthorized: false // Necesario para redes corporativas/educativas
+//     }
+// });
+
+// CONFIGURACIÓN EMAIL TRANSPORTER FUNCIONAL PARA PRODUCCION
+
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: "smtp.gmail.com",
+    port: 587,
+    secure: false, // 587 = false
+    requireTLS: true,
     auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS
     },
     tls: {
-        rejectUnauthorized: false // Necesario para redes corporativas/educativas
-    }
+        rejectUnauthorized: false
+    },
+    connectionTimeout: 20000,
+    greetingTimeout: 20000,
+    socketTimeout: 20000
 });
 
 // ==========================================
