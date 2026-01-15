@@ -55,21 +55,30 @@ const transporter = nodemailer.createTransport({
 
 // Endpoint obtener centros
 app.get('/api/centros', (req, res) => {
+    const centrosPath = path.join(__dirname, 'centros_fixed.json');
+    console.log(`📡 Buscando centros en: ${centrosPath}`);
+
     try {
         if (fs.existsSync(centrosPath)) {
             const content = fs.readFileSync(centrosPath, 'utf-8');
-            const centrosData = JSON.parse(content);
-            const lista = centrosData.map(c => ({
-                code: c.Codi_centre,
-                name: c.Denominació_completa
-            }));
-            res.json(lista);
+            try {
+                const centrosData = JSON.parse(content);
+                const lista = centrosData.map(c => ({
+                    code: c.Codi_centre,
+                    name: c.Denominació_completa
+                }));
+                res.json(lista);
+            } catch (jsonError) {
+                console.error("❌ Error PARSEANDO JSON centros:", jsonError);
+                res.status(500).json({ error: 'JSON inválido en servidor' });
+            }
         } else {
+            console.warn("⚠️ Archivo centros_fixed.json NO encontrado.");
             res.json([]);
         }
     } catch (error) {
-        console.error('❌ Error en GET /api/centros:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('❌ Error FATAL en GET /api/centros:', error);
+        res.status(500).json({ error: 'Internal Server Error: ' + error.message });
     }
 });
 

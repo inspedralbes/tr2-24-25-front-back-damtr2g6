@@ -6,15 +6,15 @@ services:
     volumes:
       - ./server:/app
       - /app/node_modules
-    env_file:             
-      - ./server/.env     
+    env_file:
+      - ./.env
     command: npm start
     networks:
       - app-network
     depends_on:
       db:
         condition: service_healthy
-      mongodb:          
+      mongodb:
         condition: service_started
 
   frontend:
