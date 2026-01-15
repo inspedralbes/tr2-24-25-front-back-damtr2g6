@@ -12,8 +12,8 @@
 
           <v-file-input
             v-model="file"
-            label="Selecciona un fitxer .pdf"
-            accept=".pdf"
+            label="Selecciona un fitxer .docx"
+            accept=".docx"
             outlined
             dense
             @change="handleFileUpload"
