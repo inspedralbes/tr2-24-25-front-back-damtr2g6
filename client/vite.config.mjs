@@ -62,6 +62,7 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    allowedHosts: ['pisgrup6.dam.inspedralbes.cat'],
     watch: {
       usePolling: true,
     },
