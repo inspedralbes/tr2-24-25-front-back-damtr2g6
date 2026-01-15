@@ -43,11 +43,21 @@ const searchStudent = async () => {
   studentData.value = null;
 
   try {
-    const response = await fetch(`/api/students/${ralcSearch.value}`);
+    const userStr = localStorage.getItem('user');
+    const user = userStr ? JSON.parse(userStr) : null;
+    
+    if (!user || !user.id) {
+       throw new Error('Usuari no identificat. Torna a iniciar sessió.');
+    }
+
+    const response = await fetch(`/api/students/${ralcSearch.value}?userId=${user.id}`);
     
     if (!response.ok) {
       if (response.status === 404) {
         throw new Error('No s\'ha trobat cap alumne amb aquest RALC.');
+      }
+      if (response.status === 403) {
+        throw new Error('No tens permís per veure aquest alumne (Exclusiu del propietari o autoritzats).');
       }
       throw new Error('Error al connectar amb el servidor.');
     }

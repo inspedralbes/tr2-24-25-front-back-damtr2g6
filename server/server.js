@@ -104,6 +104,20 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
+app.get('/api/users/:id/exists', async (req, res) => {
+    try {
+        const user = await User.findByPk(req.params.id);
+        if (user) {
+            res.json({ exists: true });
+        } else {
+            res.status(404).json({ exists: false });
+        }
+    } catch (error) {
+        console.error('Error checking user existence:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // Register
 app.post('/api/register', async (req, res) => {
     try {
@@ -183,15 +197,26 @@ app.post('/api/verify', async (req, res) => {
 // Students
 app.post('/api/students', async (req, res) => {
     try {
-        const { ralc, extractedData } = req.body;
-        if (!ralc || !extractedData) {
-            return res.status(400).json({ error: 'Falten dades' });
+        const { ralc, extractedData, userId } = req.body;
+        if (!ralc || !extractedData || !userId) {
+            return res.status(400).json({ error: 'Falten dades (ralc, extractedData, userId)' });
         }
+
+        // Comprovar si ja existeix i si l'usuari és el propietari
+        const existingStudent = await Student.findById(ralc);
+        if (existingStudent && existingStudent.ownerId && existingStudent.ownerId !== userId) {
+            return res.status(403).json({ error: 'No tens permís per modificar aquest alumne.' });
+        }
+
         const studentData = {
             name: extractedData.dadesAlumne?.nomCognoms || 'Alumne Desconegut',
             birthDate: extractedData.dadesAlumne?.dataNaixement || 'Data Desconeguda',
-            extractedData: extractedData
+            extractedData: extractedData,
+            ownerId: userId // Assignar propietari
         };
+
+        // Si existeix, mantenim ownerId original (o el sobreescrivim si som nosaltres, que ja ho som)
+        // Amb upsert, si és nou, farà servir el que passem.
         const student = await Student.findByIdAndUpdate(ralc, studentData, { new: true, upsert: true });
         res.json({ message: 'Guardado en MongoDB', student });
     } catch (error) {
@@ -203,10 +228,76 @@ app.post('/api/students', async (req, res) => {
 app.get('/api/students/:ralc', async (req, res) => {
     try {
         const { ralc } = req.params;
+        const userId = parseInt(req.query.userId); // Passar userId com a query param
+
+        if (!userId) return res.status(401).json({ error: 'Usuari no identificat' });
+
         const student = await Student.findById(ralc);
         if (!student) return res.status(404).json({ error: 'No encontrado' });
+
+        // Verificar permisos
+        // L'usuari ha de ser el propietari O estar autoritzat
+        const isOwner = student.ownerId === userId;
+        const isAuthorized = student.authorizedUsers && student.authorizedUsers.includes(userId);
+
+        if (!isOwner && !isAuthorized) {
+            return res.status(403).json({ error: 'No tens permís per veure aquest alumne.' });
+        }
+
         res.json(student);
     } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error servidor' });
+    }
+});
+
+app.get('/api/my-students', async (req, res) => {
+    try {
+        const userId = parseInt(req.query.userId);
+        if (!userId) return res.status(401).json({ error: 'Usuari no identificat' });
+
+        const students = await Student.find({
+            $or: [
+                { ownerId: userId },
+                { authorizedUsers: userId }
+            ]
+        });
+        res.json(students);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error servidor' });
+    }
+});
+
+app.post('/api/students/:ralc/authorize', async (req, res) => {
+    try {
+        const { ralc } = req.params;
+        const { userId, targetUsername } = req.body; // userId es el que solicita (propietario), targetUsername a quien autorizar
+
+        if (!userId || !targetUsername) return res.status(400).json({ error: 'Falten dades' });
+
+        const student = await Student.findById(ralc);
+        if (!student) return res.status(404).json({ error: 'Alumne no trobat' });
+
+        if (student.ownerId !== userId) {
+            return res.status(403).json({ error: 'Només el propietari pot autoritzar usuaris.' });
+        }
+
+        // Buscar el usuario destino por username en MySQL
+        const targetUser = await User.findOne({ where: { username: targetUsername } });
+        if (!targetUser) return res.status(404).json({ error: 'Usuari destinatari no trobat.' });
+
+        if (targetUser.id === userId) return res.status(400).json({ error: 'Ja ets el propietari.' });
+
+        if (!student.authorizedUsers.includes(targetUser.id)) {
+            student.authorizedUsers.push(targetUser.id);
+            await student.save();
+        }
+
+        res.json({ message: `Usuari ${targetUsername} autoritzat correctament.`, authorizedUsers: student.authorizedUsers });
+
+    } catch (error) {
+        console.error(error);
         res.status(500).json({ error: 'Error servidor' });
     }
 });

@@ -17,6 +17,14 @@ const studentSchema = new mongoose.Schema({
     extractedData: {
         type: Object, // Stores the full JSON from the PI extraction
         default: null
+    },
+    ownerId: {
+        type: Number, // ID of the User (from MySQL users table)
+        required: true
+    },
+    authorizedUsers: {
+        type: [Number], // Array of User IDs authorized to view this PI
+        default: []
     }
 }, {
     timestamps: true,

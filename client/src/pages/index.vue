@@ -124,12 +124,20 @@ const saveToDatabase = async () => {
   error.value = null;
 
   try {
+    const userStr = localStorage.getItem('user');
+    const user = userStr ? JSON.parse(userStr) : null;
+    
+    if (!user || !user.id) {
+       throw new Error('Usuari no identificat. Torna a iniciar sessió.');
+    }
+
     const response = await fetch('/api/students', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ralc: ralc.value,
-        extractedData: extractedData.value
+        extractedData: extractedData.value,
+        userId: user.id
       })
     });
 

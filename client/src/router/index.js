@@ -30,15 +30,52 @@ const router = createRouter({
       component: () => import('@/pages/Search.vue'), // Lazy load
       meta: { requiresAuth: true },
     },
+    {
+      path: '/my-pis',
+      name: 'my-pis',
+      component: () => import('@/pages/MyPis.vue'),
+      meta: { requiresAuth: true },
+    },
   ],
 });
 
-router.beforeEach((to, from, next) => {
+let sessionChecked = false;
+
+router.beforeEach(async (to, from, next) => {
   const loggedIn = localStorage.getItem('user');
 
-  if (to.matched.some(record => record.meta.requiresAuth) && !loggedIn) {
+  // Si hay usuario local, validamos contra backend UNA vez (cuando refrescas o entras)
+  if (loggedIn && !sessionChecked) {
+    try {
+      const user = JSON.parse(loggedIn);
+      if (user && user.id) {
+        // Hacemos la petición
+        const res = await fetch(`/api/users/${user.id}/exists`);
+
+        if (res.status === 404) {
+          // El usuario no existe en DB (ej: reinicio Docker)
+          console.warn('Usuario invalido o BBDD reiniciada. Cerrando sesión.');
+          localStorage.removeItem('user');
+          // Redirigir a login
+          if (to.path !== '/') return next('/');
+        } else if (res.ok) {
+          // Todo OK
+          sessionChecked = true;
+        }
+      }
+    } catch (e) {
+      console.error('Error validando sesión (Backend offline?):', e);
+      // Si falla la red, no borramos sesión por si acaso es temporal, 
+      // pero no marcamos sessionChecked=true para reintentar luego.
+    }
+  }
+
+  // Volvemos a leer por si se ha borrado arriba
+  const currentUser = localStorage.getItem('user');
+
+  if (to.matched.some(record => record.meta.requiresAuth) && !currentUser) {
     next('/');
-  } else if (loggedIn && (to.name === 'login' || to.name === 'register')) {
+  } else if (currentUser && (to.name === 'login' || to.name === 'register')) {
     next('/home');
   } else {
     next();
