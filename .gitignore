@@ -2,7 +2,7 @@
 node_modules
 /dist
 /ollama_data
-
+/server/uploads
 # local env files
 .env.local
 .env.*.local
