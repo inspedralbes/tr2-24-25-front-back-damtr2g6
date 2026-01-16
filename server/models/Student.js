@@ -25,6 +25,10 @@ const studentSchema = new mongoose.Schema({
     authorizedUsers: {
         type: [Number], // Array of User IDs authorized to view this PI
         default: []
+    },
+    centerCode: {
+        type: String, // Links PI to a center for Admin access
+        required: false
     }
 }, {
     timestamps: true,

@@ -6,6 +6,7 @@
         <v-btn variant="text" to="/home" class="mr-2">Extractor</v-btn>
         <v-btn variant="text" to="/search" class="mr-2">Cercador</v-btn>
         <v-btn v-if="isLoggedIn" variant="text" to="/my-pis" class="mr-2">Els meus PI's</v-btn>
+        <v-btn v-if="isLoggedIn" variant="text" to="/profile" class="mr-2">Perfil</v-btn>
         <v-btn v-if="isLoggedIn" variant="text" @click="logout" color="error">Tancar Sessió</v-btn>
       </template>
     </v-app-bar>

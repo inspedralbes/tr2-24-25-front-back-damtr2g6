@@ -21,7 +21,7 @@
     "@vitejs/plugin-vue": "^6.0.1",
     "eslint": "^9.35.0",
     "eslint-config-vuetify": "^4.2.0",
-    "sass-embedded": "^1.92.1",
+    "sass": "^1.77.0",
     "unplugin-fonts": "^1.4.0",
     "unplugin-vue-components": "^29.0.0",
     "unplugin-vue-router": "^0.15.0",

@@ -3,6 +3,9 @@
     <v-row>
       <v-col cols="12">
         <h1 class="text-h4 font-weight-bold mb-6 text-center text-primary">Els Meus PI's</h1>
+        <v-alert v-if="isAdmin" type="info" variant="tonal" class="mb-4">
+          👋 Hola Admin! Estàs veient tots els Projectes Individuals del centre. Pots gestionar permisos de qualsevol PI.
+        </v-alert>
       </v-col>
     </v-row>
 
@@ -190,8 +193,10 @@ onMounted(() => {
   }
 });
 
+const isAdmin = computed(() => currentUser.value?.role === 'admin');
+
 const isOwner = (student) => {
-  return currentUser.value && student.ownerId === currentUser.value.id;
+  return isAdmin.value || (currentUser.value && student.ownerId === currentUser.value.id);
 };
 
 const fetchMyStudents = async () => {

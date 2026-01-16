@@ -10,7 +10,8 @@ const path = require('path');
 const { sequelize, User } = require('./models/user');
 const mongoose = require('mongoose');
 const Student = require('./models/Student');
-const nodemailer = require('nodemailer'); // Mover imports arriba
+const nodemailer = require('nodemailer');
+const { Op } = require('sequelize');
 
 const app = express();
 const port = process.env.PORT || 4000; // Usar puerto del entorno o 4000 por defecto
@@ -87,21 +88,29 @@ app.post('/api/login', async (req, res) => {
     try {
         const { username, password, center_code } = req.body;
 
-        const user = await User.findOne({ where: { username } });
-        if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+        // Buscar usuario por username O email, filtrando por centro
+        const user = await User.findOne({
+            where: {
+                center_code: center_code,
+                [Op.or]: [
+                    { username: username },
+                    { email: username }
+                ]
+            }
+        });
+
+        if (!user) return res.status(404).json({ error: 'Usuario no encontrado o no pertenece al centro' });
 
         if (!user.isVerified) {
             return res.status(403).json({ error: 'Debes verificar tu correo electrónico antes de entrar.' });
         }
 
-        if (String(user.center_code) !== String(center_code)) {
-            return res.status(401).json({ error: 'El usuario no pertenece al centro seleccionado' });
-        }
+        // Comprobación de password sigue igual abajo...
 
         const validPassword = await bcrypt.compare(password, user.password);
         if (!validPassword) return res.status(401).json({ error: 'Contraseña incorrecta' });
 
-        res.json({ message: '¡Login exitoso!', user: { id: user.id, username: user.username, center_code: user.center_code } });
+        res.json({ message: '¡Login exitoso!', user: { id: user.id, username: user.username, center_code: user.center_code, role: user.role } });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Error en el servidor' });
@@ -123,6 +132,18 @@ app.get('/api/users/:id/exists', async (req, res) => {
 });
 
 // Register (CON EMAIL HTML)
+// Endpoint para validar sesión frontend
+app.get('/api/users/:id/exists', async (req, res) => {
+    try {
+        const user = await User.findByPk(req.params.id);
+        if (user) return res.status(200).json({ exists: true });
+        return res.status(404).json({ exists: false });
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 app.post('/api/register', async (req, res) => {
     try {
         const { username, password, center_code, email } = req.body;
@@ -140,6 +161,29 @@ app.post('/api/register', async (req, res) => {
         const correoExiste = await User.findOne({ where: { email } });
         if (correoExiste) return res.status(400).json({ error: 'El correo electrónico ya está registrado' });
 
+        // VALIDACIÓN DE ROL ADMINISTRADOR
+        const role = req.body.role || 'teacher';
+        if (role === 'admin') {
+            const centrosPath = path.join(__dirname, 'centros_fixed.json');
+            if (fs.existsSync(centrosPath)) {
+                const content = fs.readFileSync(centrosPath, 'utf-8');
+                const centrosData = JSON.parse(content);
+                const centro = centrosData.find(c => String(c.Codi_centre) === String(center_code));
+
+                if (!centro) {
+                    return res.status(400).json({ error: 'Centro no encontrado para validar administrador.' });
+                }
+
+                if (!centro["E-mail_centre"] || centro["E-mail_centre"].trim().toLowerCase() !== email.trim().toLowerCase()) {
+                    return res.status(400).json({
+                        error: `Como responsable de centro, debes usar el correo oficial: ${centro["E-mail_centre"]}`
+                    });
+                }
+            } else {
+                return res.status(500).json({ error: 'Error interno: Base de datos de centros no disponible.' });
+            }
+        }
+
         // Generar código de 6 dígitos
         const code = Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -149,7 +193,8 @@ app.post('/api/register', async (req, res) => {
             center_code,
             email,
             verificationCode: code,
-            isVerified: false
+            isVerified: false,
+            role: role
         });
 
         console.log(`📨 [DEBUG] Enviando código a ${email}...`);
@@ -238,7 +283,9 @@ app.post('/api/students', async (req, res) => {
             name: extractedData.dadesAlumne?.nomCognoms || 'Alumne Desconegut',
             birthDate: extractedData.dadesAlumne?.dataNaixement || 'Data Desconeguda',
             extractedData: extractedData,
-            ownerId: userId // Assignar propietari
+            extractedData: extractedData,
+            ownerId: userId, // Assignar propietari
+            centerCode: req.body.centerCode || null // Guardar código de centro
         };
 
         // Si existeix, mantenim ownerId original (o el sobreescrivim si som nosaltres, que ja ho som)
@@ -282,12 +329,25 @@ app.get('/api/my-students', async (req, res) => {
         const userId = parseInt(req.query.userId);
         if (!userId) return res.status(401).json({ error: 'Usuari no identificat' });
 
-        const students = await Student.find({
-            $or: [
-                { ownerId: userId },
-                { authorizedUsers: userId }
-            ]
-        });
+        const user = await User.findByPk(userId);
+        if (!user) return res.status(404).json({ error: 'Usuari no trobat' });
+
+        let query = {};
+
+        if (user.role === 'admin') {
+            // Si es admin, ve TODO lo de su centro
+            query = { centerCode: String(user.center_code) };
+        } else {
+            // Si es profesor normal, ve lo suyo o lo autorizado
+            query = {
+                $or: [
+                    { ownerId: userId },
+                    { authorizedUsers: userId }
+                ]
+            };
+        }
+
+        const students = await Student.find(query);
         res.json(students);
     } catch (error) {
         console.error(error);
@@ -305,8 +365,14 @@ app.post('/api/students/:ralc/authorize', async (req, res) => {
         const student = await Student.findById(ralc);
         if (!student) return res.status(404).json({ error: 'Alumne no trobat' });
 
-        if (student.ownerId !== userId) {
-            return res.status(403).json({ error: 'Només el propietari pot autoritzar usuaris.' });
+        const requestingUser = await User.findByPk(userId);
+        if (!requestingUser) return res.status(404).json({ error: 'Usuari solicitant no trobat' });
+
+        const isAdmin = requestingUser.role === 'admin' && String(requestingUser.center_code) === String(student.centerCode);
+        const isOwner = student.ownerId === userId;
+
+        if (!isOwner && !isAdmin) {
+            return res.status(403).json({ error: 'Només el propietari o administrador poden autoritzar usuaris.' });
         }
 
         // Buscar el usuario destino por username en MySQL
@@ -353,8 +419,28 @@ sequelize.authenticate()
         console.log('✅ Conexión a MySQL establecida correctamente.');
         return sequelize.sync({ alter: true });
     })
-    .then(() => {
+    .then(async () => {
         console.log('✅ Tablas sincronizadas en MySQL');
+
+        // Seed Admin
+        try {
+            const adminEmail = 'admin@prueba.app';
+            let admin = await User.findOne({ where: { email: adminEmail } });
+            if (!admin) {
+                await User.create({
+                    username: 'AdminPrueba',
+                    email: adminEmail,
+                    password: '123',
+                    center_code: '99999999',
+                    role: 'admin',
+                    isVerified: true
+                });
+                console.log("✅ Usuario Admin creado: admin@prueba.app / 123");
+            }
+        } catch (e) {
+            console.error("❌ Error seeding admin:", e);
+        }
+
         app.listen(port, '0.0.0.0', () => {
             console.log(`🚀 Servidor Node.js activo en puerto ${port}`);
         });

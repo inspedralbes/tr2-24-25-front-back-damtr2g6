@@ -23,7 +23,7 @@
 
               <v-text-field
                 v-model="credentials.username"
-                label="Nombre de usuario"
+                label="Nombre de usuario o Correo electrónico"
                 prepend-inner-icon="mdi-account"
                 variant="outlined"
                 required

@@ -137,7 +137,8 @@ const saveToDatabase = async () => {
       body: JSON.stringify({
         ralc: ralc.value,
         extractedData: extractedData.value,
-        userId: user.id
+        userId: user.id,
+        centerCode: user.center_code // Enviar código de centro
       })
     });
 
