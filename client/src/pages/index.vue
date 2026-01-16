@@ -1,0 +1,475 @@
+<template>
+  <v-container class="py-8">
+    <v-row justify="center">
+      <v-col cols="12" md="10" lg="9">
+        <div class="mb-6 border-b pb-2">
+          <h2 class="text-h4 font-weight-regular text-grey-darken-3">
+            Digitalització de Documents
+          </h2>
+          <span class="text-subtitle-1 text-grey-darken-1">
+            Extracció automatitzada de dades mitjançant IA
+          </span>
+        </div>
+
+        <v-card class="mb-6 elevation-1 border" variant="outlined">
+          <v-card-text class="pa-6">
+            <v-row align="center">
+              <v-col cols="12" md="8">
+                <div class="d-flex align-center mb-2">
+                  <v-icon color="#005982" size="large" class="mr-3"
+                    >mdi-cloud-upload</v-icon
+                  >
+                  <span class="text-h6">Càrrega d'Arxius</span>
+                </div>
+                <p class="text-body-2 text-grey mb-4">
+                  Selecciona els fitxers .docx dels Plans Individualitzats. El
+                  sistema processarà el contingut automàticament.
+                </p>
+
+                <v-file-input
+                  v-model="filesToUpload"
+                  label="Seleccionar fitxers (.docx)"
+                  accept=".docx"
+                  multiple
+                  variant="outlined"
+                  density="compact"
+                  prepend-icon=""
+                  prepend-inner-icon="mdi-file-word"
+                  show-size
+                  chips
+                  color="#005982"
+                  @change="clearErrors"
+                ></v-file-input>
+              </v-col>
+
+              <v-col cols="12" md="4" class="text-center">
+                <v-btn
+                  block
+                  height="56"
+                  color="#005982"
+                  class="text-white"
+                  prepend-icon="mdi-cog-play"
+                  :disabled="filesToUpload.length === 0 || isLoading"
+                  :loading="isLoading"
+                  @click="uploadFiles"
+                >
+                  Iniciar Procés
+                </v-btn>
+              </v-col>
+            </v-row>
+
+            <v-expand-transition>
+              <div v-if="error">
+                <v-alert
+                  type="error"
+                  variant="tonal"
+                  density="compact"
+                  class="mt-4"
+                  icon="mdi-alert-circle-outline"
+                >
+                  {{ error }}
+                </v-alert>
+              </div>
+            </v-expand-transition>
+
+            <v-expand-transition>
+              <div v-if="wsStatus !== 'Connected'" class="mt-2">
+                <v-alert
+                  type="warning"
+                  density="compact"
+                  variant="text"
+                  icon="mdi-wifi-off"
+                >
+                  Estat del servei de notificacions: {{ wsStatus }}
+                </v-alert>
+              </div>
+            </v-expand-transition>
+          </v-card-text>
+        </v-card>
+
+        <div v-if="uploads.length > 0">
+          <div class="d-flex align-center justify-space-between mb-3">
+            <h3 class="text-h6 text-grey-darken-2">Cua de Processament</h3>
+            <v-chip size="small" variant="outlined"
+              >{{ uploads.length }} tasques</v-chip
+            >
+          </div>
+
+          <v-card class="elevation-1">
+            <v-table>
+              <thead>
+                <tr class="bg-grey-lighten-4">
+                  <th class="text-left">Nom de l'arxiu</th>
+                  <th class="text-center">Estat</th>
+                  <th class="text-left">Detalls</th>
+                  <th class="text-right">Accions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="upload in uploads" :key="upload.id">
+                  <td class="font-weight-medium text-body-2">
+                    <v-icon
+                      icon="mdi-file-word-outline"
+                      size="small"
+                      class="mr-2"
+                      color="primary"
+                    ></v-icon>
+                    {{ upload.file.name }}
+                  </td>
+                  <td class="text-center">
+                    <v-chip
+                      size="x-small"
+                      :color="getColorForStatus(upload.status)"
+                      label
+                      class="text-uppercase font-weight-bold"
+                    >
+                      {{ translateStatus(upload.status) }}
+                    </v-chip>
+                  </td>
+                  <td class="text-caption text-grey-darken-1">
+                    <div
+                      v-if="
+                        upload.status === 'processing' ||
+                        upload.status === 'uploading'
+                      "
+                    >
+                      <v-progress-circular
+                        indeterminate
+                        size="16"
+                        width="2"
+                        color="primary"
+                        class="mr-2"
+                      ></v-progress-circular>
+                      {{ upload.message || "Processant..." }}
+                    </div>
+                    <span v-else>{{ upload.message }}</span>
+                  </td>
+                  <td class="text-right">
+                    <v-btn
+                      v-if="upload.status === 'completed'"
+                      size="small"
+                      variant="flat"
+                      color="#005982"
+                      class="text-white"
+                      @click="viewDetails(upload)"
+                      prepend-icon="mdi-eye"
+                    >
+                      Veure Dades
+                    </v-btn>
+                    <v-icon
+                      v-else-if="upload.status === 'failed'"
+                      color="error"
+                      title="Error en el procés"
+                      >mdi-alert-circle</v-icon
+                    >
+                  </td>
+                </tr>
+              </tbody>
+            </v-table>
+          </v-card>
+        </div>
+      </v-col>
+    </v-row>
+
+    <v-dialog
+      v-model="detailsDialog"
+      fullscreen
+      transition="dialog-bottom-transition"
+    >
+      <v-card class="bg-grey-lighten-5">
+        <v-toolbar color="#005982" density="compact">
+          <v-btn icon color="white" @click="closeDetailsDialog"
+            ><v-icon>mdi-close</v-icon></v-btn
+          >
+          <v-toolbar-title class="text-white text-subtitle-1"
+            >Revisió de Dades Extretes:
+            {{ selectedUpload?.file.name }}</v-toolbar-title
+          >
+          <v-spacer></v-spacer>
+          <v-btn
+            variant="text"
+            color="white"
+            @click="saveToDatabase"
+            :loading="isSaving"
+            :disabled="!ralc"
+          >
+            <v-icon start>mdi-content-save</v-icon> Confirmar i Desar
+          </v-btn>
+        </v-toolbar>
+
+        <v-container>
+          <v-row>
+            <v-col cols="12" md="8">
+              <StudentDataDisplay
+                v-if="selectedUpload?.result"
+                :student-data="selectedUpload.result"
+              />
+            </v-col>
+            <v-col cols="12" md="4">
+              <v-card class="position-sticky" style="top: 20px">
+                <v-card-title class="text-subtitle-2 bg-grey-lighten-3"
+                  >Validació d'Identitat</v-card-title
+                >
+                <v-card-text class="pt-4">
+                  <v-alert
+                    v-if="saveError"
+                    type="error"
+                    variant="tonal"
+                    class="mb-4 text-caption"
+                  >
+                    {{ saveError }}
+                  </v-alert>
+                  <p class="text-caption mb-2">
+                    Per finalitzar la importació, introdueix el RALC oficial de
+                    l'alumne per vincular l'expedient.
+                  </p>
+                  <v-text-field
+                    v-model="ralc"
+                    label="RALC de l'alumne"
+                    placeholder="Ex: 1234567890"
+                    variant="outlined"
+                    density="compact"
+                    bg-color="white"
+                    persistent-hint
+                    hint="Aquest camp és obligatori per a la base de dades"
+                  ></v-text-field>
+                </v-card-text>
+                <v-divider></v-divider>
+                <v-card-actions>
+                  <v-btn
+                    color="success"
+                    block
+                    variant="elevated"
+                    :loading="isSaving"
+                    :disabled="!ralc"
+                    @click="saveToDatabase"
+                  >
+                    Desar a l'Expedient
+                  </v-btn>
+                </v-card-actions>
+              </v-card>
+            </v-col>
+          </v-row>
+        </v-container>
+      </v-card>
+    </v-dialog>
+
+    <v-snackbar
+      v-model="snackbar"
+      :color="snackbarColor"
+      timeout="4000"
+      location="top right"
+    >
+      {{ snackbarText }}
+      <template v-slot:actions>
+        <v-btn
+          variant="text"
+          icon="mdi-close"
+          @click="snackbar = false"
+        ></v-btn>
+      </template>
+    </v-snackbar>
+  </v-container>
+</template>
+
+<script setup>
+import { ref, onMounted, onUnmounted } from "vue";
+import StudentDataDisplay from "@/components/StudentDataDisplay.vue";
+
+// ... (MANTENER LA MISMA LÓGICA DE SCRIPT QUE TENÍAS, SOLO COPIA EL SCRIPT SETUP DEL ARCHIVO ANTERIOR) ...
+// ... AÑADIR ESTA PEQUEÑA FUNCIÓN AUXILIAR PARA TRADUCIR ESTADOS VISUALMENTE:
+
+const translateStatus = (status) => {
+  const map = {
+    uploading: "Pujant",
+    queued: "En Cua",
+    processing: "Processant IA",
+    completed: "Completat",
+    failed: "Error",
+  };
+  return map[status] || status;
+};
+
+// ... RESTO DEL SCRIPT IGUAL ...
+// Asegúrate de copiar todo el bloque <script setup> de tu versión anterior,
+// añadiendo la función translateStatus arriba.
+
+// Para completar el código, aquí tienes el script setup completo fusionado con el nuevo estilo:
+
+const currentUser = ref(null);
+const filesToUpload = ref([]);
+const uploads = ref([]);
+const isLoading = ref(false);
+const error = ref(null);
+const ws = ref(null);
+const wsStatus = ref("Disconnected");
+const apiUrl = "/upload";
+
+const detailsDialog = ref(false);
+const selectedUpload = ref(null);
+const ralc = ref("");
+const isSaving = ref(false);
+const saveError = ref(null);
+const snackbar = ref(false);
+const snackbarText = ref("");
+const snackbarColor = ref("success");
+
+let wsReconnectInterval = null;
+
+const setupWebSocket = () => {
+  if (!currentUser.value?.id) return;
+
+  const wsUrl = `ws://${window.location.hostname}:4001?userId=${currentUser.value.id}`;
+  wsStatus.value = "Connectant...";
+  ws.value = new WebSocket(wsUrl);
+
+  ws.value.onopen = () => {
+    wsStatus.value = "Connected";
+    if (wsReconnectInterval) clearInterval(wsReconnectInterval);
+  };
+
+  ws.value.onmessage = (event) => {
+    const notification = JSON.parse(event.data);
+    const upload = uploads.value.find((u) => u.jobId === notification.jobId);
+
+    if (upload) {
+      upload.status = notification.status;
+      upload.message = notification.message;
+      if (notification.status === "completed") fetchJobResult(upload);
+    }
+  };
+
+  ws.value.onclose = () => {
+    wsStatus.value = "Desconnectat";
+    if (!wsReconnectInterval)
+      wsReconnectInterval = setInterval(setupWebSocket, 5000);
+  };
+};
+
+const fetchJobResult = async (upload) => {
+  try {
+    const response = await fetch(
+      `/api/jobs/${upload.jobId}?userId=${currentUser.value.id}`
+    );
+    if (!response.ok) throw new Error("Error recuperant dades");
+    const job = await response.json();
+    upload.result = job.result;
+  } catch (e) {
+    upload.status = "failed";
+    upload.message = "Error recuperant resultat";
+  }
+};
+
+onMounted(() => {
+  const userStr = localStorage.getItem("user");
+  if (userStr) {
+    currentUser.value = JSON.parse(userStr);
+    setupWebSocket();
+  } else {
+    error.value = "Sessió caducada.";
+  }
+});
+
+onUnmounted(() => {
+  if (ws.value) ws.value.close();
+  if (wsReconnectInterval) clearInterval(wsReconnectInterval);
+});
+
+const clearErrors = () => (error.value = null);
+
+const uploadFiles = async () => {
+  if (filesToUpload.value.length === 0) return;
+  isLoading.value = true;
+  error.value = null;
+
+  for (const file of filesToUpload.value) {
+    const uploadId = Date.now() + Math.random();
+    const newUpload = {
+      id: uploadId,
+      file,
+      status: "uploading",
+      message: "Iniciant càrrega...",
+      jobId: null,
+    };
+    uploads.value.unshift(newUpload);
+
+    const formData = new FormData();
+    formData.append("piFile", file);
+    formData.append("userId", currentUser.value.id);
+
+    try {
+      const response = await fetch(apiUrl, { method: "POST", body: formData });
+      const data = await response.json();
+      if (response.status !== 202)
+        throw new Error(data.error || `Error ${response.status}`);
+
+      newUpload.status = "queued";
+      newUpload.jobId = data.jobId;
+      newUpload.message = "En cua de processament...";
+    } catch (err) {
+      newUpload.status = "failed";
+      newUpload.message = err.message;
+      if (!error.value) error.value = "Error en la càrrega dels fitxers.";
+    }
+  }
+  filesToUpload.value = [];
+  isLoading.value = false;
+};
+
+const saveToDatabase = async () => {
+  if (!ralc.value || !selectedUpload.value) return;
+  isSaving.value = true;
+  saveError.value = null;
+
+  try {
+    const response = await fetch("/api/students", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ralc: ralc.value,
+        extractedData: extractedData.value,
+        userId: user.id,
+        centerCode: user.center_code // Enviar código de centro
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Error al desar");
+
+    snackbarText.value = "Expedient actualitzat correctament";
+    snackbarColor.value = "success";
+    snackbar.value = true;
+    closeDetailsDialog();
+    uploads.value = uploads.value.filter(
+      (u) => u.id !== selectedUpload.value.id
+    );
+  } catch (err) {
+    saveError.value = "Error: " + err.message;
+  } finally {
+    isSaving.value = false;
+  }
+};
+
+const viewDetails = (upload) => {
+  selectedUpload.value = upload;
+  ralc.value = "";
+  saveError.value = null;
+  detailsDialog.value = true;
+};
+
+const closeDetailsDialog = () => {
+  detailsDialog.value = false;
+  selectedUpload.value = null;
+  ralc.value = "";
+  saveError.value = null;
+};
+
+const getColorForStatus = (status) =>
+  ({
+    uploading: "blue-grey",
+    queued: "grey",
+    processing: "orange-darken-2",
+    completed: "success",
+    failed: "error",
+  }[status] || "grey");
+</script>
