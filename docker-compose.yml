@@ -13,6 +13,11 @@ services:
     environment:
       - RABBITMQ_DEFAULT_USER=user
       - RABBITMQ_DEFAULT_PASS=1234
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   backend:
     build: ./server
@@ -31,9 +36,9 @@ services:
       db:
         condition: service_healthy
       mongodb:
-        condition: service_started
+        condition: service_healthy
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
 
   worker:
     build: ./server
@@ -47,14 +52,16 @@ services:
       - app-network
     depends_on:
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
       mongodb:
-        condition: service_started
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
 
   frontend:
     build: ./client
     ports:
-      - "8083:3000"
+      - "8080:3000"
     volumes:
       - ./client:/app
       - /app/node_modules
@@ -98,7 +105,8 @@ services:
     networks:
       - app-network
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   ollama:
     image: ollama/ollama:latest
@@ -128,8 +136,13 @@ services:
             sleep 5
           done
         fi
-        echo "Tot llest!"
         wait
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list | grep -q \"$${MODEL_NAME}\""]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+
   mongodb:
     image: mongo:latest
     container_name: mongodb_db
@@ -143,6 +156,11 @@ services:
       - app-network
     volumes:
       - mongo_data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   mongo-express:
     image: mongo-express:latest
@@ -159,14 +177,13 @@ services:
     networks:
       - app-network
     depends_on:
-      - mongodb
-
+      mongodb:
+        condition: service_healthy
 networks:
   app-network:
     driver: bridge
 
 volumes:
-  ollama_data:
+  rabbitmq_data:
   db_data:
   mongo_data:
-  rabbitmq_data:
