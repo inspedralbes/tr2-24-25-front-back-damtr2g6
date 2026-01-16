@@ -36,6 +36,12 @@ const router = createRouter({
       component: () => import('@/pages/MyPis.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/profile',
+      name: 'profile',
+      component: () => import('@/pages/Profile.vue'),
+      meta: { requiresAuth: true },
+    },
   ],
 });
 
@@ -45,38 +51,23 @@ router.beforeEach(async (to, from, next) => {
   const loggedIn = localStorage.getItem('user');
 
   // Si hay usuario local, validamos contra backend UNA vez (cuando refrescas o entras)
+  // NOTA: Hemos eliminado la validación proactiva /exists porque causaba bucles infinitos
+  // con el router guard. Confiaremos en que las llamadas API fallen con 401 si la sesión es mala.
   if (loggedIn && !sessionChecked) {
-    try {
-      const user = JSON.parse(loggedIn);
-      if (user && user.id) {
-        // Hacemos la petición
-        const res = await fetch(`/api/users/${user.id}/exists`);
-
-        if (res.status === 404) {
-          // El usuario no existe en DB (ej: reinicio Docker)
-          console.warn('Usuario invalido o BBDD reiniciada. Cerrando sesión.');
-          localStorage.removeItem('user');
-          // Redirigir a login
-          if (to.path !== '/') return next('/');
-        } else if (res.ok) {
-          // Todo OK
-          sessionChecked = true;
-        }
-      }
-    } catch (e) {
-      console.error('Error validando sesión (Backend offline?):', e);
-      // Si falla la red, no borramos sesión por si acaso es temporal, 
-      // pero no marcamos sessionChecked=true para reintentar luego.
-    }
+    sessionChecked = true;
   }
 
   // Volvemos a leer por si se ha borrado arriba
   const currentUser = localStorage.getItem('user');
 
   if (to.matched.some(record => record.meta.requiresAuth) && !currentUser) {
-    next('/');
-  } else if (currentUser && (to.name === 'login' || to.name === 'register')) {
-    next('/home');
+    if (to.name !== 'login') {
+      next({ name: 'login' });
+    } else {
+      next();
+    }
+  } else if (currentUser && (to.name === 'login' || to.name === 'register' || to.path === '/')) {
+    next({ name: 'home' });
   } else {
     next();
   }

@@ -46,9 +46,16 @@
                     class="mb-3"
                   ></v-autocomplete>
 
+                  <v-checkbox
+                    v-model="formData.isAdmin"
+                    label="Sóc responsable de centre"
+                    class="mt-2"
+                    @change="handleAdminChange"
+                  ></v-checkbox>
+
                   <v-text-field
                     v-model="formData.email"
-                    label="Correu Electrònic Corporatiu"
+                    :label="formData.isAdmin ? 'Correu Oficial del Centre' : 'Correu Electrònic Corporatiu'"
                     prepend-inner-icon="mdi-email-outline"
                     variant="outlined"
                     density="comfortable"
@@ -181,10 +188,11 @@ const mensaje = ref("");
 const tipoMensaje = ref("info");
 
 const formData = ref({
-  username: "",
-  password: "",
+  username: '',
+  password: '',
   center_code: null,
-  email: "",
+  email: '',
+  isAdmin: false
 });
 
 const verificationCode = ref("");
@@ -208,6 +216,44 @@ const fetchCentros = async () => {
   }
 };
 
+const handleAdminChange = () => {
+    if (formData.value.isAdmin && formData.value.center_code) {
+        const center = centros.value.find(c => c.code === formData.value.center_code);
+        if (center && center["E-mail_centre"]) {
+            formData.value.email = center["E-mail_centre"];
+        } else {
+            formData.value.email = ''; 
+            // Si el centro no tiene email en JSON, habrá un problema, pero dejémoslo vacío
+        }
+    } else if (!formData.value.isAdmin) {
+        formData.value.email = ''; // Limpiar si desmarca
+    }
+};
+
+// Reactividad: Si cambia el centro y es admin, actualizar email
+import { watch } from 'vue';
+watch(() => formData.value.center_code, (newVal) => {
+    if (formData.value.isAdmin) {
+        handleAdminChange();
+    }
+});
+
+const emailHint = computed(() => {
+    return formData.value.isAdmin 
+        ? 'Autocompletat amb el correu oficial del centre.' 
+        : 'Debe ser @edu.gencat.cat o @inspedralbes.cat';
+});
+
+const emailRules = computed(() => {
+    const rules = [v => !!v || 'El correo es obligatorio'];
+    if (!formData.value.isAdmin) {
+        rules.push(v => /.+@.+\..+/.test(v) || 'Correo no válido');
+        // Validacion dominios opcional para profes, estricta para alumnos si quisieramos
+        // rules.push(v => /@edu\.gencat\.cat$|@inspedralbes\.cat$/.test(v) || 'Dominio no permitido'); 
+    }
+    return rules;
+});
+
 onMounted(() => {
   fetchCentros();
 });
@@ -219,10 +265,13 @@ const handleRegister = async () => {
   mensaje.value = "";
 
   try {
-    const response = await fetch("/api/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(formData.value),
+    const response = await fetch('/api/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+          ...formData.value,
+          role: formData.value.isAdmin ? 'admin' : 'teacher'
+      })
     });
 
     const data = await response.json();

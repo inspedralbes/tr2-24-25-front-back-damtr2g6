@@ -427,9 +427,10 @@ const saveToDatabase = async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ralc: ralc.value,
-        extractedData: selectedUpload.value.result,
-        userId: currentUser.value.id,
-      }),
+        extractedData: extractedData.value,
+        userId: user.id,
+        centerCode: user.center_code // Enviar código de centro
+      })
     });
 
     const data = await response.json();

@@ -21,6 +21,9 @@
             Actualitzar
           </v-btn>
         </div>
+        <v-alert v-if="isAdmin" type="info" variant="tonal" class="mb-4">
+          👋 Hola Admin! Estàs veient tots els Projectes Individuals del centre. Pots gestionar permisos de qualsevol PI.
+        </v-alert>
       </v-col>
     </v-row>
 
@@ -211,7 +214,22 @@ const snackbar = ref(false);
 const snackbarText = ref("");
 const snackbarColor = ref("success");
 
-const isOwner = (student) => student.ownerId === currentUser.value?.id;
+onMounted(() => {
+  const userStr = localStorage.getItem('user');
+  if (userStr) {
+    currentUser.value = JSON.parse(userStr);
+    fetchMyStudents();
+  } else {
+    error.value = 'No has iniciat sessió.';
+    loading.value = false;
+  }
+});
+
+const isAdmin = computed(() => currentUser.value?.role === 'admin');
+
+const isOwner = (student) => {
+  return isAdmin.value || (currentUser.value && student.ownerId === currentUser.value.id);
+};
 
 const fetchMyStudents = async () => {
   loading.value = true;

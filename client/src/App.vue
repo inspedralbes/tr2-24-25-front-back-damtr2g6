@@ -35,6 +35,7 @@
           color="primary"
         ></v-list-item>
         <v-divider class="my-2"></v-divider>
+        <v-btn v-if="isLoggedIn" variant="text" to="/profile" class="mr-2">Perfil</v-btn>
         <v-list-item
           v-if="isLoggedIn"
           prepend-icon="mdi-logout-variant"

@@ -1,15 +1,15 @@
 const { Sequelize, DataTypes } = require('sequelize');
 const bcrypt = require('bcrypt');
-require('dotenv').config(); 
+require('dotenv').config();
 
 // Configuración de la conexión (AHORA ES DINÁMICA)
 // Intenta leer del .env. Si no encuentra nada, usa los valores fijos (el 'fallback')
 const sequelize = new Sequelize(
-  process.env.MYSQL_DATABASE || 'datos',   
-  process.env.MYSQL_USER || 'root',         
-  process.env.MYSQL_PASSWORD || '1234',      
+  process.env.MYSQL_DATABASE || 'datos',
+  process.env.MYSQL_USER || 'root',
+  process.env.MYSQL_PASSWORD || '1234',
   {
-    host: process.env.MYSQL_HOST || 'db',   
+    host: process.env.MYSQL_HOST || 'db',
     dialect: 'mysql',
   }
 );
@@ -43,6 +43,11 @@ const User = sequelize.define('User', {
   isVerified: {
     type: DataTypes.BOOLEAN,
     defaultValue: false
+  },
+  role: {
+    type: DataTypes.STRING,
+    defaultValue: 'teacher', // 'teacher' || 'admin'
+    allowNull: false
   }
 }, {
   hooks: {
