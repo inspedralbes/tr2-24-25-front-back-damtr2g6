@@ -10,10 +10,13 @@ const path = require('path');
 const { sequelize, User } = require('./models/user');
 const mongoose = require('mongoose');
 const Student = require('./models/Student');
-const nodemailer = require('nodemailer'); // Mover imports arriba
+const nodemailer = require('nodemailer');
+const amqp = require('amqplib'); // Import amqplib
+const Job = require('./models/Job'); // Import Job model
+const WebSocket = require('ws'); // Import WebSocket module
 
 const app = express();
-const port = process.env.PORT || 4000; // Usar puerto del entorno o 4000 por defecto
+const port = process.env.PORT || 4000;
 
 // Configuración Multer
 const upload = multer({ dest: 'uploads/' });
@@ -26,7 +29,7 @@ if (!fs.existsSync(centrosPath)) {
     console.log(`✅ centros_fixed.json detectado.`);
 }
 
-// MongoDB Connection (Usando variable de entorno)
+// MongoDB Connection
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://admin:1234@mongodb:27017/school_data?authSource=admin';
 mongoose.connect(MONGO_URI)
     .then(() => console.log('✅ Connectat a MongoDB (School Data)'))
@@ -35,6 +38,84 @@ mongoose.connect(MONGO_URI)
 app.use(cors());
 app.use(express.json());
 
+
+// WebSocket Server Setup
+const WSS_PORT = process.env.WSS_PORT || 4001;
+const wss = new WebSocket.Server({ port: WSS_PORT });
+const clients = new Map(); // Map<userId, WebSocket>
+
+wss.on('connection', (ws, req) => {
+    console.log(`🔗 Cliente WebSocket conectado al puerto ${WSS_PORT}.`);
+    // Extract userId from query parameters (e.g., /?userId=123)
+    const userId = new URL(req.url, `http://${req.headers.host}`).searchParams.get('userId');
+
+    if (userId) {
+        clients.set(userId, ws);
+        console.log(` Cliente ${userId} registrado para notificaciones.`);
+    } else {
+        console.warn(' Cliente WebSocket conectado sin userId.');
+        ws.send(JSON.stringify({ type: 'error', message: 'User ID required for WebSocket connection.' }));
+        ws.close(1008, 'User ID required');
+        return;
+    }
+
+    ws.on('message', message => {
+        console.log(`Mensaje recibido de ${userId}: ${message}`);
+        // Handle incoming messages if needed
+    });
+
+    ws.on('close', () => {
+        console.log(` Cliente ${userId} desconectado.`);
+        clients.delete(userId);
+    });
+
+    ws.on('error', error => {
+        console.error(` Error en WebSocket para ${userId}:`, error);
+    });
+});
+
+console.log(`🚀 Servidor WebSocket escuchando en el puerto ${WSS_PORT}`);
+
+// RabbitMQ Setup
+let channel, connection;
+const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://user:1234@rabbitmq:5672'; // Default for Docker
+
+async function connectRabbitMQ() {
+    try {
+        connection = await amqp.connect(RABBITMQ_URL);
+        channel = await connection.createChannel();
+        await channel.assertQueue('pi_processing_queue', { durable: true });
+        await channel.assertQueue('job_notification_queue', { durable: true });
+        console.log('✅ Conectado a RabbitMQ y colas aseguradas.');
+
+        // Start consuming from the notification queue
+        channel.consume('job_notification_queue', (msg) => {
+            if (msg !== null) {
+                try {
+                    const notification = JSON.parse(msg.content.toString());
+                    console.log('🔔 Notificación de trabajo recibida:', notification);
+
+                    const clientWs = clients.get(String(notification.userId));
+                    if (clientWs && clientWs.readyState === WebSocket.OPEN) {
+                        clientWs.send(JSON.stringify(notification));
+                        console.log(` Notificación enviada al cliente ${notification.userId}`);
+                    } else {
+                        console.warn(` Cliente ${notification.userId} no conectado o WebSocket no listo.`);
+                    }
+                    channel.ack(msg);
+                } catch (e) {
+                    console.error('Error al procesar mensaje de notificación:', e);
+                    channel.ack(msg); // Acknowledge to prevent requeue loop
+                }
+            }
+        }, { noAck: false });
+
+    } catch (error) {
+        console.error('❌ Error conectando a RabbitMQ:', error.message);
+        setTimeout(connectRabbitMQ, 5000); // Reintentar conexión
+    }
+}
+connectRabbitMQ();
 
 // CONFIGURACIÓN EMAIL TRANSPORTER
 
@@ -45,7 +126,7 @@ const transporter = nodemailer.createTransport({
         pass: process.env.SMTP_PASS
     },
     tls: {
-        rejectUnauthorized: false // Necesario para redes corporativas/educativas
+        rejectUnauthorized: false
     }
 });
 
@@ -130,7 +211,7 @@ app.post('/api/register', async (req, res) => {
         if (!center_code) return res.status(400).json({ error: 'El código del centro es obligatorio' });
         if (!email) return res.status(400).json({ error: 'El correo electrónico es obligatorio' });
 
-        const validDomains = ['@edu.gencat.cat', '@inspedralbes.cat', '@gmail.com']; // Añadido gmail para pruebas si quieres
+        const validDomains = ['@edu.gencat.cat', '@inspedralbes.cat', '@gmail.com'];
         const isValidDomain = validDomains.some(domain => email.endsWith(domain));
         if (!isValidDomain) return res.status(400).json({ error: 'Dominio de correo no permitido.' });
 
@@ -140,7 +221,6 @@ app.post('/api/register', async (req, res) => {
         const correoExiste = await User.findOne({ where: { email } });
         if (correoExiste) return res.status(400).json({ error: 'El correo electrónico ya está registrado' });
 
-        // Generar código de 6 dígitos
         const code = Math.floor(100000 + Math.random() * 900000).toString();
 
         await User.create({
@@ -154,12 +234,11 @@ app.post('/api/register', async (req, res) => {
 
         console.log(`📨 [DEBUG] Enviando código a ${email}...`);
 
-        // Plantilla HTML Profesional
         const mailOptions = {
             from: `"Soport - Generalitat" <${process.env.SMTP_USER}>`,
             to: email,
             subject: '🔐 Codi de verificació - Registre',
-            text: `El teu codi de verificació és: ${code}`, // Fallback texto plano
+            text: `El teu codi de verificació és: ${code}`,
             html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px; background-color: #ffffff;">
                 <div style="text-align: center; margin-bottom: 20px;">
@@ -186,7 +265,6 @@ app.post('/api/register', async (req, res) => {
             console.log('✅ Correo enviado correctamente a:', email);
         } catch (mailError) {
             console.error('⚠️ ERROR AL ENVIAR CORREO:', mailError);
-            // No bloqueamos el registro, pero avisamos en consola
         }
 
         res.status(201).json({ message: 'Usuario registrado. Revisa tu correo.', needsVerification: true, email });
@@ -206,10 +284,9 @@ app.post('/api/verify', async (req, res) => {
         if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
         if (user.isVerified) return res.status(400).json({ error: 'El usuario ya está verificado' });
 
-        // Comparar Strings para evitar errores de tipo
         if (String(user.verificationCode) === String(code)) {
             user.isVerified = true;
-            user.verificationCode = null; // Limpiar código por seguridad
+            user.verificationCode = null;
             await user.save();
             res.json({ message: 'Cuenta verificada correctamente. Ya puedes iniciar sesión.' });
         } else {
@@ -229,7 +306,6 @@ app.post('/api/students', async (req, res) => {
             return res.status(400).json({ error: 'Falten dades (ralc, extractedData, userId)' });
         }
 
-        // Comprovar si ja existeix i si l'usuari és el propietari
         const existingStudent = await Student.findById(ralc);
         if (existingStudent && existingStudent.ownerId && existingStudent.ownerId !== userId) {
             return res.status(403).json({ error: 'No tens permís per modificar aquest alumne.' });
@@ -238,11 +314,9 @@ app.post('/api/students', async (req, res) => {
             name: extractedData.dadesAlumne?.nomCognoms || 'Alumne Desconegut',
             birthDate: extractedData.dadesAlumne?.dataNaixement || 'Data Desconeguda',
             extractedData: extractedData,
-            ownerId: userId // Assignar propietari
+            ownerId: userId
         };
 
-        // Si existeix, mantenim ownerId original (o el sobreescrivim si som nosaltres, que ja ho som)
-        // Amb upsert, si és nou, farà servir el que passem.
         const student = await Student.findByIdAndUpdate(ralc, studentData, { new: true, upsert: true });
         res.json({ message: 'Guardado en MongoDB', student });
     } catch (error) {
@@ -254,15 +328,13 @@ app.post('/api/students', async (req, res) => {
 app.get('/api/students/:ralc', async (req, res) => {
     try {
         const { ralc } = req.params;
-        const userId = parseInt(req.query.userId); // Passar userId com a query param
+        const userId = parseInt(req.query.userId);
 
         if (!userId) return res.status(401).json({ error: 'Usuari no identificat' });
 
         const student = await Student.findById(ralc);
         if (!student) return res.status(404).json({ error: 'No encontrado' });
 
-        // Verificar permisos
-        // L'usuari ha de ser el propietari O estar autoritzat
         const isOwner = student.ownerId === userId;
         const isAuthorized = student.authorizedUsers && student.authorizedUsers.includes(userId);
 
@@ -298,7 +370,7 @@ app.get('/api/my-students', async (req, res) => {
 app.post('/api/students/:ralc/authorize', async (req, res) => {
     try {
         const { ralc } = req.params;
-        const { userId, targetUsername } = req.body; // userId es el que solicita (propietario), targetUsername a quien autorizar
+        const { userId, targetUsername } = req.body;
 
         if (!userId || !targetUsername) return res.status(400).json({ error: 'Falten dades' });
 
@@ -309,7 +381,6 @@ app.post('/api/students/:ralc/authorize', async (req, res) => {
             return res.status(403).json({ error: 'Només el propietari pot autoritzar usuaris.' });
         }
 
-        // Buscar el usuario destino por username en MySQL
         const targetUser = await User.findOne({ where: { username: targetUsername } });
         if (!targetUser) return res.status(404).json({ error: 'Usuari destinatari no trobat.' });
 
@@ -329,15 +400,79 @@ app.post('/api/students/:ralc/authorize', async (req, res) => {
 });
 
 app.post('/upload', upload.single('piFile'), async (req, res) => {
-    if (!req.file) return res.status(400).send('No file');
+    if (!req.file) return res.status(400).send('No file uploaded.');
+    if (!channel) return res.status(500).send('RabbitMQ channel not established.');
+
+    const { userId } = req.body; // Suponiendo que el userId viene en el body
+    if (!userId) {
+        fs.unlinkSync(req.file.path); // Limpiar archivo temporal si no hay userId
+        return res.status(400).send('User ID is required.');
+    }
+
+    const jobId = new mongoose.Types.ObjectId(); // Generar un ObjectId para el jobId
     const filePath = req.file.path;
+    const originalFileName = req.file.originalname;
+
     try {
-        const data = await extractPIdata(filePath);
-        fs.unlinkSync(filePath); // Limpieza
-        res.json({ message: 'Extracción exitosa', data });
+        // Guardar el estado inicial del trabajo en MongoDB
+        const newJob = new Job({
+            _id: jobId,
+            userId: userId,
+            filename: originalFileName,
+            filePath: filePath, // Guardamos la ruta temporal del archivo
+            status: 'queued',
+            uploadedAt: new Date(),
+        });
+        await newJob.save();
+
+        // Enviar mensaje a RabbitMQ
+        const message = {
+            jobId: jobId.toHexString(),
+            filePath: filePath,
+            originalFileName: originalFileName,
+            userId: userId,
+        };
+        channel.sendToQueue('pi_processing_queue', Buffer.from(JSON.stringify(message)), { persistent: true });
+        console.log(`✅ Trabajo ${jobId} encolado para el archivo ${originalFileName}`);
+
+        res.status(202).json({
+            message: 'Archivo subido y encolado para procesamiento.',
+            jobId: jobId.toHexString(),
+            filename: originalFileName,
+            status: 'queued'
+        });
     } catch (error) {
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-        res.status(500).send(error.message);
+        console.error('❌ Error al encolar el trabajo:', error);
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath); // Limpiar en caso de error
+        res.status(500).send('Error al procesar la subida del archivo.');
+    }
+});
+
+app.get('/api/jobs/:jobId', async (req, res) => {
+    try {
+        const { jobId } = req.params;
+        const { userId } = req.query;
+
+        if (!userId) {
+            return res.status(401).json({ error: 'User ID is required for authorization.' });
+        }
+
+        const job = await Job.findById(jobId);
+
+        if (!job) {
+            return res.status(404).json({ error: 'Job not found.' });
+        }
+
+        // Security check: ensure the user requesting the job is the one who created it
+        if (String(job.userId) !== String(userId)) {
+            return res.status(403).json({ error: 'You are not authorized to view this job.' });
+        }
+
+        res.json(job);
+
+    } catch (error) {
+        console.error(`Error fetching job ${req.params.jobId}:`, error);
+        res.status(500).json({ error: 'Server error while fetching job details.' });
     }
 });
 
