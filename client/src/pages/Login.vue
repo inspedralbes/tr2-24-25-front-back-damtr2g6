@@ -1,99 +1,154 @@
 <template>
-  <v-container class="fill-height">
-    <v-row justify="center">
-      <v-col cols="12" sm="8" md="5">
-        <v-card class="pa-4" rounded="lg">
-          <v-card-title class="text-h5 text-center">Accés al Sistema</v-card-title>
+  <v-container class="fill-height bg-grey-lighten-4" fluid>
+    <v-row justify="center" align="center">
+      <v-col cols="12" sm="8" md="5" lg="4">
+        <div class="text-center mb-8">
+          <v-img
+            src="https://www.edubcn.cat/img/hdr_logo_ceb_2019.svg"
+            height="60"
+            contain
+          ></v-img>
+        </div>
 
-          <v-card-text class="pt-4">
-            <v-form ref="form" v-model="isFormValid">
+        <v-card class="elevation-4 rounded-lg border-opacity-100">
+          <v-sheet color="#005982" height="6"></v-sheet>
+
+          <div class="pa-8">
+            <h1
+              class="text-h5 font-weight-bold text-center text-grey-darken-3 mb-2"
+            >
+              Accés a l'Aplicatiu
+            </h1>
+            <p class="text-body-2 text-center text-grey-darken-1 mb-8">
+              Identificació per a personal docent i administratiu
+            </p>
+
+            <v-form
+              ref="form"
+              v-model="isFormValid"
+              @submit.prevent="submitLogin"
+            >
               <v-autocomplete
                 v-model="credentials.center_code"
                 :items="centros"
                 item-title="displayName"
                 item-value="code"
-                label="Selecciona tu centro"
+                label="Centre Educatiu"
                 prepend-inner-icon="mdi-domain"
                 variant="outlined"
-                :rules="[v => !!v || 'El centro es obligatorio']"
+                density="comfortable"
+                color="#005982"
+                bg-color="grey-lighten-5"
+                :rules="[(v) => !!v || 'Cal seleccionar un centre']"
                 :loading="loadingCentros"
-                no-data-text="No se encontraron centros"
-                placeholder="Escribe para buscar..."
+                no-data-text="No s'han trobat centres"
+                placeholder="Codi o nom del centre..."
+                class="mb-3"
               ></v-autocomplete>
 
               <v-text-field
                 v-model="credentials.username"
-                label="Nombre de usuario"
-                prepend-inner-icon="mdi-account"
+                label="Usuari (Gencat / XTEC)"
+                prepend-inner-icon="mdi-account-circle-outline"
                 variant="outlined"
+                density="comfortable"
+                color="#005982"
+                bg-color="grey-lighten-5"
                 required
+                class="mb-3"
               ></v-text-field>
 
-              <v-text-field v-model="credentials.password" label="Contraseña" prepend-inner-icon="mdi-lock"
-                type="password" variant="outlined" required></v-text-field>
+              <v-text-field
+                v-model="credentials.password"
+                label="Contrasenya"
+                prepend-inner-icon="mdi-lock-outline"
+                type="password"
+                variant="outlined"
+                density="comfortable"
+                color="#005982"
+                bg-color="grey-lighten-5"
+                required
+                class="mb-2"
+              ></v-text-field>
+
+              <v-alert
+                v-if="errorMessage"
+                type="error"
+                variant="tonal"
+                density="compact"
+                class="mt-4 mb-2 text-caption"
+              >
+                {{ errorMessage }}
+              </v-alert>
+
+              <v-btn
+                block
+                color="#005982"
+                size="large"
+                class="mt-6 text-white text-capitalize font-weight-bold"
+                :disabled="!isFormValid"
+                :loading="isLoading"
+                type="submit"
+                elevation="2"
+              >
+                Iniciar Sessió
+              </v-btn>
             </v-form>
+          </div>
 
-            <v-alert v-if="errorMessage" type="error" class="mt-3" variant="tonal">
-              {{ errorMessage }}
-            </v-alert>
-          </v-card-text>
+          <v-divider></v-divider>
 
-          <v-card-actions class="d-block text-center pb-4 px-4">
-            <v-btn block color="primary" size="large" :disabled="!isFormValid" @click="submitLogin">
-              Iniciar Sessió
-            </v-btn>
+          <div class="pa-4 text-center bg-grey-lighten-5 rounded-b-lg">
+            <span class="text-caption text-grey-darken-2">No tens compte?</span>
             <v-btn
               variant="text"
-              color="primary"
-              class="mt-3"
+              color="#005982"
+              size="small"
+              class="font-weight-bold px-1"
               @click="redirectToRegister"
             >
-              ¿No tienes cuenta? Regístrate aquí.
+              Sol·licitar Alta
             </v-btn>
-          </v-card-actions>
+          </div>
         </v-card>
+
+        <div class="text-center mt-8 text-caption text-grey">
+          &copy; {{ new Date().getFullYear() }} Consorci d'Educació de
+          Barcelona<br />
+          <span class="text-grey-lighten-1"
+            >Suport Tècnic: suport.ceb@gencat.cat</span
+          >
+        </div>
       </v-col>
     </v-row>
   </v-container>
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, nextTick, onMounted } from "vue";
+import { useRouter } from "vue-router";
 
 const router = useRouter();
 const isFormValid = ref(false);
-const errorMessage = ref('');
-const credentials = ref({
-  username: '',
-  password: '',
-  center_code: null
-});
-
+const isLoading = ref(false);
+const errorMessage = ref("");
+const credentials = ref({ username: "", password: "", center_code: null });
 const centros = ref([]);
 const loadingCentros = ref(false);
 
 const fetchCentros = async () => {
   loadingCentros.value = true;
-  errorMessage.value = ''; // Reset error
   try {
-    // Usamos ruta relativa para que funcione el Proxy de Vite (ver vite.config.mjs)
-    const url = `/api/centros?t=${Date.now()}`;
-    const res = await fetch(url);
-    
+    const res = await fetch(`/api/centros?t=${Date.now()}`);
     if (!res.ok) throw new Error(`Error HTTP: ${res.status}`);
     const data = await res.json();
-    centros.value = data.map(c => ({
-        ...c,
-        displayName: `${c.name} (${c.code})`
+    // Formateamos para que se vea bonito en el desplegable
+    centros.value = data.map((c) => ({
+      ...c,
+      displayName: `${c.name} (${c.code})`,
     }));
-    
-    if (centros.value.length === 0) {
-      console.warn("Recibido array vacío de centros");
-    }
   } catch (error) {
-    console.error("Error fetching centros:", error);
-    errorMessage.value = `Error conectando con el servidor: ${error.message}. Asegúrate de que el backend (localhost:4000) esté funcionando.`;
+    errorMessage.value = `Error carregant centres: ${error.message}`;
   } finally {
     loadingCentros.value = false;
   }
@@ -103,40 +158,34 @@ onMounted(() => {
   fetchCentros();
 });
 
-const redirectToRegister = () => {
-  router.push('/register');
-};
+const redirectToRegister = () => router.push("/register");
 
 const submitLogin = async () => {
-  errorMessage.value = '';
-  console.log('Attempting to log in with:', credentials.value);
-  console.log('Available routes:', router.getRoutes());
+  if (!isFormValid.value) return;
+  isLoading.value = true;
+  errorMessage.value = "";
 
   try {
-    const response = await fetch('/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(credentials.value)
+    const response = await fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(credentials.value),
     });
 
-    console.log('Received response from server:', response);
     const data = await response.json();
-    console.log('Response data:', data);
 
     if (response.ok) {
-      console.log('Login successful. Storing user data in localStorage.');
-      localStorage.setItem('user', JSON.stringify(data.user));
+      localStorage.setItem("user", JSON.stringify(data.user));
       await nextTick();
-      console.log('Redirecting to /home');
-      router.push('/home'); 
-      console.log('Redirection command issued.');
+      router.push("/home");
     } else {
-      console.error('Login failed:', data.error);
-      errorMessage.value = data.error || 'Error desconocido';
+      errorMessage.value =
+        data.error || "Credencials incorrectes o usuari no verificat.";
     }
   } catch (error) {
-    console.error('An error occurred during login:', error);
-    errorMessage.value = 'No se pudo conectar con el servidor';
+    errorMessage.value = "Error de comunicació amb el servidor.";
+  } finally {
+    isLoading.value = false;
   }
 };
 </script>

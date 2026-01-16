@@ -1,31 +1,58 @@
 <template>
-  <v-container>
-    <v-row>
+  <v-container class="py-8">
+    <v-row class="mb-6">
       <v-col cols="12">
-        <h1 class="text-h4 font-weight-bold mb-6 text-center text-primary">Els Meus PI's</h1>
+        <div class="d-flex align-center justify-space-between border-b pb-4">
+          <div>
+            <h2 class="text-h4 font-weight-regular text-grey-darken-3">
+              Els Meus Expedients
+            </h2>
+            <span class="text-subtitle-1 text-grey-darken-1"
+              >Gestió i custòdia de Plans Individualitzats</span
+            >
+          </div>
+          <v-btn
+            variant="outlined"
+            color="#005982"
+            prepend-icon="mdi-refresh"
+            @click="fetchMyStudents"
+            :loading="loading"
+          >
+            Actualitzar
+          </v-btn>
+        </div>
       </v-col>
     </v-row>
 
     <v-row v-if="loading">
-      <v-col cols="12" class="text-center">
-        <v-progress-circular indeterminate color="primary" size="64"></v-progress-circular>
+      <v-col cols="12" class="text-center py-12">
+        <v-progress-circular
+          indeterminate
+          color="#005982"
+          size="64"
+        ></v-progress-circular>
+        <p class="mt-4 text-grey">Carregant expedients...</p>
       </v-col>
     </v-row>
 
     <v-row v-else-if="error">
       <v-col cols="12">
-        <v-alert type="error" variant="tonal">
+        <v-alert type="error" variant="tonal" icon="mdi-alert-circle">
           {{ error }}
         </v-alert>
       </v-col>
     </v-row>
 
     <v-row v-else-if="students.length === 0">
-      <v-col cols="12" class="text-center">
+      <v-col cols="12">
         <v-empty-state
           icon="mdi-folder-open-outline"
-          title="No tens cap PI"
-          text="Encara no has pujat cap Projecte Individual o ningú t'ha autoritzat a veure'n cap."
+          headline="Sense Expedients"
+          title="No hi ha documents disponibles"
+          text="Encara no has processat cap Pla Individualitzat o no tens permisos delegats."
+          action-text="Anar a l'Extractor"
+          @click:action="$router.push('/home')"
+          color="#005982"
         ></v-empty-state>
       </v-col>
     </v-row>
@@ -38,239 +65,230 @@
         md="6"
         lg="4"
       >
-        <v-card class="h-100 d-flex flex-column hover-card" elevation="2">
-          <v-toolbar color="primary" density="comfortable">
-            <v-toolbar-title class="text-subtitle-1 white--text">
-              {{ student.name }}
-            </v-toolbar-title>
-            <v-spacer></v-spacer>
-            <v-chip size="small" variant="elevated" color="secondary" class="mr-2">
-              {{ isOwner(student) ? 'Propietari' : 'Autoritzat' }}
-            </v-chip>
-          </v-toolbar>
+        <v-card
+          class="h-100 d-flex flex-column hover-card border"
+          variant="flat"
+        >
+          <v-card-item>
+            <template v-slot:prepend>
+              <v-avatar color="blue-lighten-5" rounded="lg">
+                <v-icon color="#005982">mdi-account-school</v-icon>
+              </v-avatar>
+            </template>
+            <v-card-title class="font-weight-bold text-subtitle-1">{{
+              student.name
+            }}</v-card-title>
+            <v-card-subtitle>
+              <v-icon size="small" class="mr-1">mdi-identifier</v-icon> RALC:
+              {{ student._id }}
+            </v-card-subtitle>
+          </v-card-item>
 
-          <v-card-text class="flex-grow-1 pt-4">
-            <div class="mb-2"><strong>RALC:</strong> {{ student._id }}</div>
-            <div class="mb-2"><strong>Data Naixement:</strong> {{ student.birthDate }}</div>
-            <div class="mb-2 text-caption text-grey">
-              Creat: {{ new Date(student.createdAt).toLocaleDateString() }}
+          <v-divider class="mx-4"></v-divider>
+
+          <v-card-text class="flex-grow-1 pt-3">
+            <div
+              class="d-flex align-center text-caption text-grey-darken-1 mb-2"
+            >
+              <v-icon size="small" class="mr-2">mdi-calendar</v-icon>
+              Data Naixement: {{ student.birthDate }}
             </div>
-            
-            <v-divider class="my-3"></v-divider>
-            
-            <div v-if="isOwner(student)">
-              <strong>Usuaris Autoritzats:</strong>
-              <div v-if="student.authorizedUsers && student.authorizedUsers.length > 0" class="d-flex flex-wrap gap-1 mt-1">
-                 <v-chip v-for="uId in student.authorizedUsers" :key="uId" size="x-small" pill>
-                   ID: {{ uId }}
-                 </v-chip>
-              </div>
-              <div v-else class="text-caption font-italic text-grey mt-1">Cap usuari autoritzat.</div>
+
+            <div class="mt-3">
+              <v-chip
+                size="small"
+                :color="isOwner(student) ? 'green-darken-1' : 'blue-grey'"
+                variant="flat"
+                class="text-white font-weight-medium"
+              >
+                {{ isOwner(student) ? "Propietari" : "Accés Autoritzat" }}
+              </v-chip>
             </div>
           </v-card-text>
 
-          <v-card-actions class="justify-space-between pa-4 bg-grey-lighten-4">
+          <v-card-actions class="bg-grey-lighten-5 px-4 py-3">
             <v-btn
               variant="text"
-              color="primary"
-              @click="viewDetails(student)"
-              prepend-icon="mdi-eye"
+              color="#005982"
+              size="small"
+              prepend-icon="mdi-file-document-outline"
+              @click="$router.push(`/search?ralc=${student._id}`)"
             >
-              Veure Detalls
+              Veure Detall
             </v-btn>
+
+            <v-spacer></v-spacer>
 
             <v-btn
               v-if="isOwner(student)"
-              variant="tonal"
-              color="secondary"
-              @click="openAuthorizeDialog(student)"
-              prepend-icon="mdi-account-key"
+              variant="text"
+              color="orange-darken-4"
               size="small"
-            >
-              Autoritzar
-            </v-btn>
+              icon="mdi-account-key"
+              title="Gestionar Permisos"
+              @click="openAuthDialog(student)"
+            ></v-btn>
           </v-card-actions>
         </v-card>
       </v-col>
     </v-row>
 
-    <!-- Dialog Detalls -->
-    <v-dialog v-model="detailsDialog" fullscreen transition="dialog-bottom-transition">
-       <v-card>
-        <v-toolbar dark color="primary">
-          <v-btn icon dark @click="detailsDialog = false">
-            <v-icon>mdi-close</v-icon>
-          </v-btn>
-          <v-toolbar-title>Detalls del PI: {{ selectedStudent?.name }}</v-toolbar-title>
-        </v-toolbar>
-
-        <v-container>
-           <StudentDataDisplay v-if="selectedStudent" :student-data="selectedStudent.extractedData" />
-        </v-container>
-      </v-card>
-    </v-dialog>
-
-    <!-- Dialog Autoritzar -->
     <v-dialog v-model="authDialog" max-width="500">
-      <v-card>
-        <v-card-title class="text-h6 bg-secondary text-white pa-4">
-          Autoritzar Usuari
-        </v-card-title>
-        <v-card-text class="pt-4">
-          <p class="mb-4">Introdueix el nom d'usuari de la persona a qui vols donar accés a aquest PI.</p>
+      <v-card class="rounded-lg">
+        <v-toolbar
+          color="#005982"
+          density="compact"
+          title="Gestió de Permisos"
+          class="text-white"
+        ></v-toolbar>
+        <v-card-text class="pa-4">
+          <p class="text-body-2 mb-4">
+            Autoritzar l'accés a l'expedient de
+            <strong>{{ studentToAuth?.name }}</strong> a un altre professional.
+          </p>
           <v-text-field
             v-model="targetUsername"
-            label="Nom d'usuari"
+            label="Nom d'usuari del docent"
+            prepend-inner-icon="mdi-account-search"
             variant="outlined"
-            prepend-inner-icon="mdi-account"
-            placeholder="Ex: usuari123"
-            :error-messages="authError"
+            density="comfortable"
+            color="#005982"
+            placeholder="Ex: jgarcia"
           ></v-text-field>
+
+          <v-alert
+            v-if="authError"
+            type="error"
+            variant="tonal"
+            density="compact"
+            class="mt-2"
+            >{{ authError }}</v-alert
+          >
         </v-card-text>
-        <v-card-actions class="pa-4">
+        <v-card-actions class="pa-4 pt-0">
           <v-spacer></v-spacer>
           <v-btn variant="text" @click="authDialog = false">Cancel·lar</v-btn>
           <v-btn
-            color="secondary"
-            variant="elevated"
+            color="#005982"
+            variant="flat"
             :loading="authLoading"
             :disabled="!targetUsername"
             @click="authorizeUser"
           >
-            Autoritzar
+            Autoritzar Accés
           </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <!-- Snackbar -->
-      <v-snackbar
-      v-model="snackbar"
-      :color="snackbarColor"
-      timeout="3000"
-    >
+    <v-snackbar v-model="snackbar" :color="snackbarColor" location="top right">
       {{ snackbarText }}
-      <template v-slot:actions>
-        <v-btn variant="text" @click="snackbar = false">Tancar</v-btn>
-      </template>
+      <template v-slot:actions
+        ><v-btn
+          variant="text"
+          icon="mdi-close"
+          @click="snackbar = false"
+        ></v-btn
+      ></template>
     </v-snackbar>
   </v-container>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
-import StudentDataDisplay from '@/components/StudentDataDisplay.vue';
+import { ref, onMounted, computed } from "vue";
 
 const students = ref([]);
 const loading = ref(true);
 const error = ref(null);
 const currentUser = ref(null);
 
-const detailsDialog = ref(false);
-const selectedStudent = ref(null);
-
 const authDialog = ref(false);
-const targetUsername = ref('');
 const authLoading = ref(false);
-const authError = ref('');
+const authError = ref("");
 const studentToAuth = ref(null);
-
+const targetUsername = ref("");
 const snackbar = ref(false);
-const snackbarText = ref('');
-const snackbarColor = ref('success');
+const snackbarText = ref("");
+const snackbarColor = ref("success");
 
-onMounted(() => {
-  const userStr = localStorage.getItem('user');
-  if (userStr) {
-    currentUser.value = JSON.parse(userStr);
-    fetchMyStudents();
-  } else {
-    error.value = 'No has iniciat sessió.';
-    loading.value = false;
-  }
-});
-
-const isOwner = (student) => {
-  return currentUser.value && student.ownerId === currentUser.value.id;
-};
+const isOwner = (student) => student.ownerId === currentUser.value?.id;
 
 const fetchMyStudents = async () => {
   loading.value = true;
+  error.value = null;
+
+  const userStr = localStorage.getItem("user");
+  if (!userStr) {
+    error.value = "Sessió no iniciada.";
+    loading.value = false;
+    return;
+  }
+  currentUser.value = JSON.parse(userStr);
+
   try {
-    const response = await fetch(`/api/my-students?userId=${currentUser.value.id}`);
-    if (!response.ok) throw new Error('Error al carregar els PIs');
+    const response = await fetch(
+      `/api/my-students?userId=${currentUser.value.id}`
+    );
+    if (!response.ok) throw new Error("Error al recuperar els expedients");
     students.value = await response.json();
-  } catch (e) {
-    error.value = e.message;
+  } catch (err) {
+    error.value = err.message;
   } finally {
     loading.value = false;
   }
 };
 
-const viewDetails = (student) => {
-  selectedStudent.value = student;
-  detailsDialog.value = true;
-};
+onMounted(() => {
+  fetchMyStudents();
+});
 
-const openAuthorizeDialog = (student) => {
+const openAuthDialog = (student) => {
   studentToAuth.value = student;
-  targetUsername.value = '';
-  authError.value = '';
+  targetUsername.value = "";
+  authError.value = "";
   authDialog.value = true;
 };
 
 const authorizeUser = async () => {
-    if(!studentToAuth.value) return;
+  if (!studentToAuth.value) return;
+  authLoading.value = true;
+  authError.value = "";
 
-    authLoading.value = true;
-    authError.value = '';
+  try {
+    const response = await fetch(
+      `/api/students/${studentToAuth.value._id}/authorize`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: currentUser.value.id,
+          targetUsername: targetUsername.value,
+        }),
+      }
+    );
 
-    try {
-        const response = await fetch(`/api/students/${studentToAuth.value._id}/authorize`, {
-            method: 'POST',
-             headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({
-                 userId: currentUser.value.id,
-                 targetUsername: targetUsername.value
-             })
-        });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Error al autoritzar");
 
-        const data = await response.json();
-
-        if(!response.ok) {
-            throw new Error(data.error || 'Error al autoritzar');
-        }
-
-        // Update local state
-        const index = students.value.findIndex(s => s._id === studentToAuth.value._id);
-        if(index !== -1) {
-            // Refresh details or just close
-            students.value[index].authorizedUsers = data.authorizedUsers;
-        }
-
-        snackbarText.value = `Usuari ${targetUsername.value} autoritzat correctament!`;
-        snackbarColor.value = 'success';
-        snackbar.value = true;
-        authDialog.value = false;
-
-    } catch (e) {
-        authError.value = e.message;
-    } finally {
-        authLoading.value = false;
-    }
-}
-
+    snackbarText.value = `Permís concedit a l'usuari ${targetUsername.value}`;
+    snackbarColor.value = "success";
+    snackbar.value = true;
+    authDialog.value = false;
+  } catch (e) {
+    authError.value = e.message;
+  } finally {
+    authLoading.value = false;
+  }
+};
 </script>
 
 <style scoped>
 .hover-card {
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: all 0.2s ease-in-out;
 }
 .hover-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
-}
-.gap-1 {
-    gap: 4px;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1) !important;
+  border-color: #005982 !important;
 }
 </style>

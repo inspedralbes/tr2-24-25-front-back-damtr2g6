@@ -1,104 +1,165 @@
 <template>
-  <v-container class="fill-height">
+  <v-container class="fill-height bg-grey-lighten-4">
     <v-row justify="center">
-      <v-col cols="12" sm="8" md="5">
-        <v-card class="pa-4" rounded="lg">
-          <v-card-title class="text-h5 text-center">Crear Nova Compte</v-card-title>
+      <v-col cols="12" sm="8" md="6" lg="5">
+        <div class="text-center mb-6">
+          <v-img
+            src="https://www.edubcn.cat/img/hdr_logo_ceb_2019.svg"
+            height="50"
+            contain
+          ></v-img>
+        </div>
 
-          <v-card-text class="pt-4">
+        <v-card class="rounded-lg elevation-3">
+          <v-toolbar color="#005982" class="text-white" density="compact">
+            <v-toolbar-title class="text-subtitle-1"
+              >Alta d'Usuari</v-toolbar-title
+            >
+          </v-toolbar>
+
+          <v-card-text class="pa-6">
             <v-window v-model="step">
               <v-window-item :value="1">
-                <v-form ref="form" v-model="isFormValid">
+                <p class="text-body-2 text-grey-darken-2 mb-4">
+                  Introdueix les teves dades professionals per sol·licitar
+                  l'accés.
+                </p>
+                <v-form
+                  ref="form"
+                  v-model="isFormValid"
+                  @submit.prevent="handleRegister"
+                >
                   <v-autocomplete
                     v-model="formData.center_code"
                     :items="centros"
                     item-title="displayName"
                     item-value="code"
-                    label="Selecciona tu centro"
+                    label="Centre Educatiu Assignat"
                     prepend-inner-icon="mdi-domain"
                     variant="outlined"
-                    :rules="[v => !!v || 'El centro es obligatorio']"
+                    density="comfortable"
+                    color="#005982"
+                    :rules="[(v) => !!v || 'Cal assignar un centre']"
                     :loading="loadingCentros"
-                    no-data-text="No se encontraron centros"
-                    placeholder="Escribe para buscar..."
+                    no-data-text="Sense resultats"
+                    placeholder="Busca pel nom o codi..."
+                    class="mb-3"
                   ></v-autocomplete>
 
                   <v-text-field
                     v-model="formData.email"
-                    label="Correo Electrónico XTEC/Gencat"
-                    prepend-inner-icon="mdi-email"
+                    label="Correu Electrònic Corporatiu"
+                    prepend-inner-icon="mdi-email-outline"
                     variant="outlined"
-                    hint="Debe ser @edu.gencat.cat o @inspedralbes.cat"
+                    density="comfortable"
+                    hint="Ha de ser @edu.gencat.cat o @inspedralbes.cat"
                     persistent-hint
+                    color="#005982"
                     :rules="[
-                      v => !!v || 'El correo es obligatorio',
-                      v => /.+@.+\..+/.test(v) || 'Correo no válido',
-                      v => /@edu\.gencat\.cat$|@inspedralbes\.cat$/.test(v) || 'Debe ser un correo XTEC/Gencat válido'
+                      (v) => !!v || 'Correu obligatori',
+                      (v) => /.+@.+\..+/.test(v) || 'Format de correu invàlid',
                     ]"
+                    class="mb-3"
                   ></v-text-field>
 
                   <v-text-field
                     v-model="formData.username"
-                    label="Nombre de Usuario"
-                    prepend-inner-icon="mdi-account-plus"
+                    label="Nom d'Usuari Desitjat"
+                    prepend-inner-icon="mdi-account-edit-outline"
                     variant="outlined"
-                    :rules="[v => !!v || 'El usuario es obligatorio']"
+                    density="comfortable"
+                    color="#005982"
+                    :rules="[
+                      (v) => !!v || 'Usuari obligatori',
+                      (v) => v.length >= 3 || 'Mínim 3 caràcters',
+                    ]"
+                    class="mb-3"
                   ></v-text-field>
 
                   <v-text-field
                     v-model="formData.password"
-                    label="Contraseña"
-                    prepend-inner-icon="mdi-lock"
+                    label="Contrasenya"
+                    prepend-inner-icon="mdi-lock-plus-outline"
                     type="password"
                     variant="outlined"
-                    :rules="[v => !!v || 'La contraseña es obligatoria']"
+                    density="comfortable"
+                    color="#005982"
+                    :rules="[
+                      (v) => !!v || 'Contrasenya obligatòria',
+                      (v) => v.length >= 6 || 'Mínim 6 caràcters',
+                    ]"
                   ></v-text-field>
 
-                  <v-text-field
-                    v-model="confirmarPass"
-                    label="Repetir Contraseña"
-                    prepend-inner-icon="mdi-lock-check"
-                    type="password"
-                    variant="outlined"
-                    :rules="[v => v === formData.password || 'Las contraseñas no coinciden']"
-                  ></v-text-field>
+                  <v-btn
+                    block
+                    color="#005982"
+                    size="large"
+                    class="mt-6 text-white text-capitalize"
+                    :loading="loading"
+                    :disabled="!isFormValid"
+                    type="submit"
+                  >
+                    Continuar
+                  </v-btn>
                 </v-form>
               </v-window-item>
 
               <v-window-item :value="2">
-                <div class="text-center mb-4">
-                  <v-icon size="64" color="primary">mdi-email-check</v-icon>
-                  <p class="mt-2">Revisa tu correo {{ formData.email }}</p>
+                <div class="text-center py-4">
+                  <v-icon color="#005982" size="60" class="mb-3"
+                    >mdi-email-check-outline</v-icon
+                  >
+                  <h3 class="text-h6 mb-2">Verificació de Correu</h3>
+                  <p class="text-body-2 text-grey mb-6">
+                    Hem enviat un codi de seguretat a
+                    <strong>{{ formData.email }}</strong
+                    >.<br />
+                    Introdueix-lo a continuació per activar el compte.
+                  </p>
+
+                  <v-otp-input
+                    v-model="verificationCode"
+                    length="6"
+                    variant="outlined"
+                    color="#005982"
+                    class="mb-4"
+                  ></v-otp-input>
+
+                  <v-btn
+                    block
+                    color="#005982"
+                    size="large"
+                    class="mt-4 text-white"
+                    :loading="loading"
+                    :disabled="verificationCode.length < 6"
+                    @click="handleVerify"
+                  >
+                    Verificar i Finalitzar
+                  </v-btn>
                 </div>
-                <v-otp-input
-                  v-model="verificationCode"
-                  length="6"
-                  variant="outlined"
-                ></v-otp-input>
-                <v-btn block color="primary" class="mt-4" @click="handleVerify" :disabled="verificationCode.length < 6">
-                  Verificar Código
-                </v-btn>
               </v-window-item>
             </v-window>
 
-            <v-alert v-if="mensaje" :type="tipoMensaje" class="mt-3" variant="tonal">
+            <v-alert
+              v-if="mensaje"
+              :type="tipoMensaje"
+              variant="tonal"
+              density="compact"
+              class="mt-4"
+            >
               {{ mensaje }}
             </v-alert>
           </v-card-text>
 
-          <v-card-actions class="d-block text-center pb-4 px-4">
+          <v-divider></v-divider>
+          <v-card-actions class="bg-grey-lighten-5 justify-center py-3">
             <v-btn
-              v-if="step === 1"
-              block
-              color="primary"
-              size="large"
-              :disabled="!isFormValid"
-              @click="handleRegister"
+              variant="text"
+              size="small"
+              color="grey-darken-2"
+              @click="router.push('/login')"
             >
-              Registrarse
-            </v-btn>
-            <v-btn variant="text" color="primary" class="mt-3" @click="router.push('/')">
-              ¿Ja tens compte? Inicia sessió aquí.
+              <v-icon start>mdi-arrow-left</v-icon> Tornar a l'inici
             </v-btn>
           </v-card-actions>
         </v-card>
@@ -108,39 +169,40 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router'; // Import useRouter
+import { ref, onMounted } from "vue";
+import { useRouter } from "vue-router";
 
-const router = useRouter(); // Initialize useRouter
-const isFormValid = ref(false);
-const confirmarPass = ref('');
-const mensaje = ref('');
-const tipoMensaje = ref('info');
+const router = useRouter();
 const step = ref(1);
-const verificationCode = ref('');
+const isFormValid = ref(false);
+const loading = ref(false);
+const loadingCentros = ref(false);
+const mensaje = ref("");
+const tipoMensaje = ref("info");
 
 const formData = ref({
-  username: '',
-  password: '',
-  center_code: null
+  username: "",
+  password: "",
+  center_code: null,
+  email: "",
 });
 
+const verificationCode = ref("");
 const centros = ref([]);
-const loadingCentros = ref(false);
 
 const fetchCentros = async () => {
   loadingCentros.value = true;
   try {
-    const res = await fetch('/api/centros');
-    if (!res.ok) throw new Error('Error al cargar centros');
-    const data = await res.json();
-    // Formatear para mostrar "Nombre (Código)"
-    centros.value = data.map(c => ({
+    const res = await fetch(`/api/centros?t=${Date.now()}`);
+    if (res.ok) {
+      const data = await res.json();
+      centros.value = data.map((c) => ({
         ...c,
-        displayName: `${c.name} (${c.code})`
-    }));
-  } catch (error) {
-    console.error(error);
+        displayName: `${c.name} (${c.code})`,
+      }));
+    }
+  } catch (e) {
+    console.error(e);
   } finally {
     loadingCentros.value = false;
   }
@@ -151,55 +213,69 @@ onMounted(() => {
 });
 
 const handleRegister = async () => {
-  mensaje.value = '';
+  if (!isFormValid.value) return;
+
+  loading.value = true;
+  mensaje.value = "";
 
   try {
-    const response = await fetch('/api/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData.value)
+    const response = await fetch("/api/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(formData.value),
     });
 
     const data = await response.json();
 
     if (response.ok) {
       if (data.needsVerification) {
-        step.value = 2; // Move to verification step
-        tipoMensaje.value = 'success';
-        mensaje.value = `¡Registro iniciado! Hemos enviado un código a ${formData.value.email}. Introdúcelo abajo.`;
+        step.value = 2; // Passar al pas de verificació
+        tipoMensaje.value = "success";
+        mensaje.value = `Codi enviat correctament a ${formData.value.email}`;
       } else {
-        tipoMensaje.value = 'success';
-        mensaje.value = 'Registro exitoso. Redirigiendo...';
-        setTimeout(() => router.push('/'), 2000);
+        // Fallback si no hi ha verificació configurada
+        tipoMensaje.value = "success";
+        mensaje.value = "Registre completat. Redirigint...";
+        setTimeout(() => router.push("/login"), 2000);
       }
     } else {
-      tipoMensaje.value = 'error';
-      mensaje.value = data.error || 'Error al registrar';
+      tipoMensaje.value = "error";
+      mensaje.value = data.error || "Error en el registre";
     }
   } catch (error) {
-    tipoMensaje.value = 'error';
-    mensaje.value = 'Error de conexión';
+    tipoMensaje.value = "error";
+    mensaje.value = "Error de connexió amb el servidor";
+  } finally {
+    loading.value = false;
   }
 };
 
 const handleVerify = async () => {
-    try {
-        const response = await fetch('/api/verify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: formData.value.email, code: verificationCode.value })
-        });
-        const data = await response.json();
-        if (response.ok) {
-            tipoMensaje.value = 'success';
-            mensaje.value = '¡Cuenta verificada! Redirigiendo al login...';
-            setTimeout(() => router.push('/'), 2000);
-        } else {
-            tipoMensaje.value = 'error';
-            mensaje.value = data.error;
-        }
-    } catch (error) {
-        mensaje.value = 'Error al verificar';
+  loading.value = true;
+  try {
+    const response = await fetch("/api/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: formData.value.email,
+        code: verificationCode.value,
+      }),
+    });
+    const data = await response.json();
+
+    if (response.ok) {
+      tipoMensaje.value = "success";
+      mensaje.value = "Compte verificat correctament! Redirigint...";
+      setTimeout(() => router.push("/login"), 2000);
+    } else {
+      tipoMensaje.value = "error";
+      mensaje.value = data.error || "Codi incorrecte";
     }
+  } catch (e) {
+    tipoMensaje.value = "error";
+    mensaje.value = "Error de verificació";
+  } finally {
+    loading.value = false;
+  }
 };
 </script>
