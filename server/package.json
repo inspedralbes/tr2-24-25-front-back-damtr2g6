@@ -11,6 +11,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "amqplib": "^0.10.3",
     "bcrypt": "^6.0.0",
     "cheerio": "^1.0.0-rc.12",
     "cors": "^2.8.5",
@@ -24,7 +25,6 @@
     "nodemailer": "^7.0.12",
     "pdf-parse": "^1.1.1",
     "sequelize": "^6.37.7",
-    "amqplib": "^0.10.3",
     "ws": "^8.16.0"
   }
 }

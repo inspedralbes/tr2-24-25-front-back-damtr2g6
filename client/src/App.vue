@@ -94,6 +94,13 @@
           class="text-white text-capitalize mx-1"
           >Expedients</v-btn
         >
+        <v-btn
+          v-if="isLoggedIn"
+          variant="text"
+          to="/profile"
+          class="text-white text-capitalize mx-1"
+          >Perfil</v-btn
+        >
 
         <v-divider
           vertical

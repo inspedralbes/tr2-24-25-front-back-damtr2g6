@@ -22,6 +22,7 @@ async function startWorker() {
         const connection = await amqp.connect(RABBITMQ_URL);
         const channel = await connection.createChannel();
         await channel.assertQueue('pi_processing_queue', { durable: true });
+        await channel.prefetch(1); // Process 1 message at a time
         console.log('✅ Worker conectado a RabbitMQ. Esperando mensajes...');
 
         channel.consume('pi_processing_queue', async (msg) => {

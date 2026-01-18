@@ -176,7 +176,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, onMounted, computed, watch } from "vue";
 import { useRouter } from "vue-router";
 
 const router = useRouter();
@@ -231,7 +231,6 @@ const handleAdminChange = () => {
 };
 
 // Reactividad: Si cambia el centro y es admin, actualizar email
-import { watch } from 'vue';
 watch(() => formData.value.center_code, (newVal) => {
     if (formData.value.isAdmin) {
         handleAdminChange();

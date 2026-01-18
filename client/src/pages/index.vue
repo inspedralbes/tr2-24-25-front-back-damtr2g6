@@ -2,6 +2,7 @@
   <v-container class="py-8">
     <v-row justify="center">
       <v-col cols="12" md="10" lg="9">
+
         <div class="mb-6 border-b pb-2">
           <h2 class="text-h4 font-weight-regular text-grey-darken-3">
             Digitalització de Documents
@@ -10,6 +11,30 @@
             Extracció automatitzada de dades mitjançant IA
           </span>
         </div>
+
+        <!-- EXAMPLE DOWNLOAD CARD -->
+        <v-card class="mb-6 bg-blue-grey-lighten-5 border" variant="flat">
+          <v-card-text class="d-flex align-center justify-space-between">
+            <div>
+              <div class="text-h6 text-blue-grey-darken-3 mb-1">
+                <v-icon start color="blue-grey-darken-2">mdi-file-document-check</v-icon>
+                Model de Document PI Recomanat
+              </div>
+              <p class="text-body-2 text-grey-darken-2 mb-0">
+                Utilitzeu aquest model de document per garantir una extracció perfecta de les dades.
+              </p>
+            </div>
+            <v-btn
+              color="blue-grey-darken-2"
+              variant="elevated"
+              prepend-icon="mdi-download"
+              href="/public/examples/Exemple_PI_Correcte.docx"
+              target="_blank"
+            >
+              Descarregar Model
+            </v-btn>
+          </v-card-text>
+        </v-card>
 
         <v-card class="mb-6 elevation-1 border" variant="outlined">
           <v-card-text class="pa-6">
@@ -427,9 +452,9 @@ const saveToDatabase = async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ralc: ralc.value,
-        extractedData: extractedData.value,
-        userId: user.id,
-        centerCode: user.center_code // Enviar código de centro
+        extractedData: selectedUpload.value.result,
+        userId: currentUser.value.id,
+        centerCode: currentUser.value.center_code // Enviar código de centro
       })
     });
 

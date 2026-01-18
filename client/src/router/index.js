@@ -15,9 +15,13 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
-      path: '/',
+      path: '/login',
       name: 'login',
       component: Login,
+    },
+    {
+      path: '/',
+      redirect: '/login',
     },
     {
       path: '/register',

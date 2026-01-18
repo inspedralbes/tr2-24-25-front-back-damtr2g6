@@ -14,7 +14,7 @@ services:
       - RABBITMQ_DEFAULT_USER=user
       - RABBITMQ_DEFAULT_PASS=1234
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      test: [ "CMD", "rabbitmq-diagnostics", "-q", "check_running" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -138,7 +138,7 @@ services:
         fi
         wait
     healthcheck:
-      test: ["CMD-SHELL", "ollama list | grep -q \"$${MODEL_NAME}\""]
+      test: [ "CMD-SHELL", "ollama list | grep -q \"$${MODEL_NAME}\"" ]
       interval: 15s
       timeout: 10s
       retries: 20
