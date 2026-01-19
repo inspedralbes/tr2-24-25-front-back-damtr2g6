@@ -62,7 +62,9 @@
                 v-model="credentials.password"
                 label="Contrasenya"
                 prepend-inner-icon="mdi-lock-outline"
-                type="password"
+                :type="isPasswordVisible ? 'text' : 'password'"
+                :append-inner-icon="isPasswordVisible ? 'mdi-eye-off' : 'mdi-eye'"
+                @click:append-inner="isPasswordVisible = !isPasswordVisible"
                 variant="outlined"
                 density="comfortable"
                 color="#005982"
@@ -132,6 +134,7 @@ const router = useRouter();
 const isFormValid = ref(false);
 const isLoading = ref(false);
 const errorMessage = ref("");
+const isPasswordVisible = ref(false);
 const credentials = ref({ username: "", password: "", center_code: null });
 const centros = ref([]);
 const loadingCentros = ref(false);

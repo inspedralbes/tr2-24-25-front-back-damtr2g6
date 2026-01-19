@@ -34,91 +34,85 @@
           to="/my-pis"
           color="primary"
         ></v-list-item>
-        <v-divider class="my-2"></v-divider>
-        <v-btn v-if="isLoggedIn" variant="text" to="/profile" class="mr-2">Perfil</v-btn>
-        <v-list-item
-          v-if="isLoggedIn"
-          prepend-icon="mdi-logout-variant"
-          title="Desconnectar"
-          @click="logout"
-          color="error"
-        ></v-list-item>
+        <div v-if="isLoggedIn">
+          <v-divider class="my-2"></v-divider>
+          <v-list-item
+            prepend-icon="mdi-account-box-outline"
+            title="Perfil"
+            to="/profile"
+          ></v-list-item>
+          <v-list-item
+            prepend-icon="mdi-logout-variant"
+            title="Desconnectar"
+            @click="logout"
+            class="text-red"
+          ></v-list-item>
+        </div>
       </v-list>
     </v-navigation-drawer>
 
-    <v-app-bar elevation="1" color="#005982" density="comfortable">
-      <template v-slot:prepend>
+    <v-app-bar app color="white" height="64" class="border-b" elevation="0">
+      <v-container class="d-flex align-center pa-0 h-100" fluid>
+
         <v-app-bar-nav-icon
           v-if="showNavigation"
           @click.stop="drawer = !drawer"
-          class="d-md-none text-white"
+          class="d-md-none"
         ></v-app-bar-nav-icon>
-      </template>
 
-      <v-avatar class="ml-2 mr-3" color="white" rounded="0" size="45">
-        <v-img
-          src="https://www.edubcn.cat/img/hdr_logo_ceb_2019.svg"
-          contain
-          class="pa-1"
-        ></v-img>
-      </v-avatar>
+        <router-link to="/" class="d-flex align-center text-decoration-none mr-4">
+          <v-img
+            src="https://www.edubcn.cat/img/hdr_logo_ceb_2019.svg"
+            contain
+            width="170"
+            height="50"
+            class="ml-2"
+          ></v-img>
+        </router-link>
 
-      <div class="d-flex flex-column">
-        <v-toolbar-title class="font-weight-bold text-white text-body-1">
-          Consorci d'Educació de Barcelona
-        </v-toolbar-title>
-        <span
-          class="text-caption text-white d-none d-sm-block ml-4"
-          style="margin-top: -4px; opacity: 0.9"
-        >
-          Gestió de Plans Individualitzats (PI)
-        </span>
-      </div>
+        <div v-if="showNavigation" class="d-none d-md-flex align-center">
+          <v-btn
+            variant="text"
+            to="/home"
+            class="text-grey-darken-2"
+            >Extractor</v-btn
+          >
+          <v-btn
+            variant="text"
+            to="/search"
+            class="text-grey-darken-2"
+            >Cercador</v-btn
+          >
+          <v-btn
+            v-if="isLoggedIn"
+            variant="text"
+            to="/my-pis"
+            class="text-grey-darken-2"
+            >Expedients</v-btn
+          >
+        </div>
 
-      <v-spacer></v-spacer>
+        <v-spacer></v-spacer>
 
-      <div v-if="showNavigation" class="d-none d-md-flex align-center">
-        <v-btn variant="text" to="/home" class="text-white text-capitalize mx-1"
-          >Extractor</v-btn
-        >
-        <v-btn
-          variant="text"
-          to="/search"
-          class="text-white text-capitalize mx-1"
-          >Cercador</v-btn
-        >
-        <v-btn
-          v-if="isLoggedIn"
-          variant="text"
-          to="/my-pis"
-          class="text-white text-capitalize mx-1"
-          >Expedients</v-btn
-        >
-        <v-btn
-          v-if="isLoggedIn"
-          variant="text"
-          to="/profile"
-          class="text-white text-capitalize mx-1"
-          >Perfil</v-btn
-        >
+        <div v-if="showNavigation" class="d-none d-md-flex align-center mr-4">
+          <v-menu v-if="isLoggedIn" location="bottom" offset="8">
+            <template v-slot:activator="{ props }">
+               <v-avatar color="grey-lighten-3" size="36" v-bind="props" style="cursor: pointer;">
+                  <v-icon color="grey-darken-1">mdi-account-circle-outline</v-icon>
+                </v-avatar>
+            </template>
+            <v-list density="compact" class="mt-2 py-1">
+              <v-list-subheader class="font-weight-bold">Connectat</v-list-subheader>
+              <v-list-item to="/profile" title="El meu perfil" prepend-icon="mdi-account-box-outline"></v-list-item>
+              <v-divider class="my-1"></v-divider>
+              <v-list-item @click="logout" prepend-icon="mdi-logout-variant">
+                <v-list-item-title class="text-red-darken-2">Desconnectar</v-list-item-title>
+              </v-list-item>
+            </v-list>
+          </v-menu>
+        </div>
 
-        <v-divider
-          vertical
-          class="mx-3 border-opacity-50"
-          color="white"
-        ></v-divider>
-
-        <v-btn
-          v-if="isLoggedIn"
-          variant="outlined"
-          @click="logout"
-          color="white"
-          size="small"
-          prepend-icon="mdi-logout"
-        >
-          Sortir
-        </v-btn>
-      </div>
+      </v-container>
     </v-app-bar>
 
     <v-main>
