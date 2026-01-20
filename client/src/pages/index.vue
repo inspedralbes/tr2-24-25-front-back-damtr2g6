@@ -414,8 +414,8 @@ const saveToDatabase = async () => {
     snackbarText.value = "Expedient actualitzat correctament";
     snackbarColor.value = "success";
     snackbar.value = true;
-    closeDetailsDialog();
     uploadStore.removeUpload(selectedUpload.value.id);
+    closeDetailsDialog();
   } catch (err) {
     saveError.value = "Error: " + err.message;
   } finally {

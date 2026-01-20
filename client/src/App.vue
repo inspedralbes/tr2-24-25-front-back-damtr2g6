@@ -177,6 +177,7 @@ import { ref, onMounted, watch, computed, onUnmounted } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useDisplay } from "vuetify";
 import { useUploadStore } from "@/store/uploadStore";
+import logoWhite from "@/assets/logo_white.svg";
 
 const router = useRouter();
 const route = useRoute();
@@ -186,6 +187,7 @@ const uploadStore = useUploadStore();
 const drawer = ref(false);
 const isLoggedIn = ref(false);
 const currentUser = ref(null);
+const userData = ref({ name: 'Usuari', email: '' });
 const ws = ref(null);
 let wsReconnectInterval = null;
 
@@ -197,9 +199,20 @@ const checkLoginStatus = () => {
   const userStr = localStorage.getItem("user");
   isLoggedIn.value = !!userStr;
   if (userStr) {
-    currentUser.value = JSON.parse(userStr);
+    try {
+      const parsed = JSON.parse(userStr);
+      currentUser.value = parsed;
+      userData.value = {
+        name: parsed.name || parsed.username || 'Usuari',
+        email: parsed.email || ''
+      };
+    } catch (e) {
+      currentUser.value = null;
+      userData.value = { name: 'Usuari', email: '' };
+    }
   } else {
     currentUser.value = null;
+    userData.value = { name: 'Usuari', email: '' }; // Reset
   }
 };
 
