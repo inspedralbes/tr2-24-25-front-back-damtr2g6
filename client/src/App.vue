@@ -32,11 +32,6 @@
         <div v-if="isLoggedIn">
           <v-divider class="my-2"></v-divider>
           <v-list-item
-            prepend-icon="mdi-account-box-outline"
-            title="Perfil"
-            to="/profile"
-          ></v-list-item>
-          <v-list-item
             prepend-icon="mdi-logout-variant"
             title="Desconnectar"
             @click="logout"
@@ -56,20 +51,17 @@
       </template>
 
       <!-- Logo -->
-      <div 
-        class="d-flex align-center mr-4" 
-        style="height: 48px; min-width: 150px;"
+      <div
+        class="d-flex align-center mr-4"
+        style="height: 48px; min-width: 150px"
       >
-        <v-img
-          :src="logoWhite"
-          height="45"
-          width="150"
-          contain
-        ></v-img>
+        <v-img :src="logoWhite" height="45" width="150" contain></v-img>
       </div>
 
       <div class="d-flex flex-column">
-        <v-toolbar-title class="font-weight-bold text-white text-body-1 d-none d-sm-block">
+        <v-toolbar-title
+          class="font-weight-bold text-white text-body-1 d-none d-sm-block"
+        >
           Consorci d'Educació de Barcelona
         </v-toolbar-title>
         <span
@@ -85,7 +77,12 @@
       <div v-if="showNavigation" class="d-flex align-center">
         <!-- Desktop Navigation Links -->
         <div class="d-none d-md-flex mr-4">
-          <v-btn variant="text" to="/home" class="text-white text-capitalize mx-1" rounded="pill">
+          <v-btn
+            variant="text"
+            to="/home"
+            class="text-white text-capitalize mx-1"
+            rounded="pill"
+          >
             Extractor
           </v-btn>
           <v-btn
@@ -104,32 +101,50 @@
           <template v-slot:activator="{ props }">
             <v-btn icon v-bind="props" class="ml-2">
               <v-avatar color="grey-lighten-2" size="40" class="elevation-2">
-                <v-icon icon="mdi-account" size="28" color="grey-darken-3"></v-icon>
+                <v-icon
+                  icon="mdi-account"
+                  size="28"
+                  color="grey-darken-3"
+                ></v-icon>
               </v-avatar>
             </v-btn>
           </template>
           <v-card>
             <v-list-item class="px-4 pt-3 pb-2">
               <template v-slot:prepend>
-                 <v-avatar color="#005982" size="40">
-                    <span class="text-h6 text-white font-weight-bold">{{ userData.name.charAt(0).toUpperCase() }}</span>
-                 </v-avatar>
+                <v-avatar color="#005982" size="40">
+                  <span class="text-h6 text-white font-weight-bold">{{
+                    userData.name.charAt(0).toUpperCase()
+                  }}</span>
+                </v-avatar>
               </template>
-              <v-list-item-title class="font-weight-bold">{{ userData.name }}</v-list-item-title>
+              <v-list-item-title class="font-weight-bold">{{
+                userData.name
+              }}</v-list-item-title>
               <v-list-item-subtitle>{{ userData.email }}</v-list-item-subtitle>
             </v-list-item>
             <v-divider class="my-1"></v-divider>
             <v-list density="compact" nav>
-              <v-list-item prepend-icon="mdi-account-circle-outline" value="profile" to="/profile" color="primary">
+              <v-list-item
+                prepend-icon="mdi-account-circle-outline"
+                value="profile"
+                to="/profile"
+                color="primary"
+              >
                 <v-list-item-title>Veure perfil</v-list-item-title>
               </v-list-item>
-              <v-list-item prepend-icon="mdi-logout" value="logout" @click="logout" color="error">
+              <v-list-item
+                prepend-icon="mdi-logout"
+                value="logout"
+                @click="logout"
+                color="error"
+              >
                 <v-list-item-title>Tancar sessió</v-list-item-title>
               </v-list-item>
             </v-list>
           </v-card>
         </v-menu>
-        
+
         <!-- Login Button if not logged in -->
         <v-btn
           v-else
@@ -187,7 +202,7 @@ const uploadStore = useUploadStore();
 const drawer = ref(false);
 const isLoggedIn = ref(false);
 const currentUser = ref(null);
-const userData = ref({ name: 'Usuari', email: '' });
+const userData = ref({ name: "Usuari", email: "" });
 const ws = ref(null);
 let wsReconnectInterval = null;
 
@@ -203,16 +218,16 @@ const checkLoginStatus = () => {
       const parsed = JSON.parse(userStr);
       currentUser.value = parsed;
       userData.value = {
-        name: parsed.name || parsed.username || 'Usuari',
-        email: parsed.email || ''
+        name: parsed.name || parsed.username || "Usuari",
+        email: parsed.email || "",
       };
     } catch (e) {
       currentUser.value = null;
-      userData.value = { name: 'Usuari', email: '' };
+      userData.value = { name: "Usuari", email: "" };
     }
   } else {
     currentUser.value = null;
-    userData.value = { name: 'Usuari', email: '' }; // Reset
+    userData.value = { name: "Usuari", email: "" }; // Reset
   }
 };
 
@@ -284,7 +299,7 @@ onUnmounted(() => {
 watch(route, () => {
   checkLoginStatus();
   if (isLoggedIn.value && (!ws.value || ws.value.readyState > 1)) {
-     setupWebSocket();
+    setupWebSocket();
   }
 });
 

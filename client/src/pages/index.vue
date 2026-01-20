@@ -2,7 +2,6 @@
   <v-container class="py-8">
     <v-row justify="center">
       <v-col cols="12" md="10" lg="9">
-
         <div class="mb-6 border-b pb-2">
           <h2 class="text-h4 font-weight-regular text-grey-darken-3">
             Digitalització de Documents
@@ -14,22 +13,28 @@
 
         <!-- EXAMPLE DOWNLOAD CARD -->
         <v-card class="mb-6 bg-blue-grey-lighten-5 border" variant="flat">
-          <v-card-text class="d-flex align-center justify-space-between">
-            <div>
+          <v-card-text
+            class="d-flex flex-column flex-sm-row align-center justify-space-between"
+          >
+            <div class="mb-4 mb-sm-0">
               <div class="text-h6 text-blue-grey-darken-3 mb-1">
-                <v-icon start color="blue-grey-darken-2">mdi-file-document-check</v-icon>
+                <v-icon start color="blue-grey-darken-2"
+                  >mdi-file-document-check</v-icon
+                >
                 Model de Document PI Recomanat
               </div>
               <p class="text-body-2 text-grey-darken-2 mb-0">
-                Utilitzeu aquest model de document per garantir una extracció perfecta de les dades.
+                Utilitzeu aquest model de document per garantir una extracció
+                perfecta de les dades.
               </p>
             </div>
             <v-btn
               color="blue-grey-darken-2"
               variant="elevated"
               prepend-icon="mdi-download"
-              href="/public/examples/Exemple_PI_Correcte.docx"
+              href="/examples/Exemple_PI_Correcte.docx"
               target="_blank"
+              class="align-self-start align-self-sm-center"
             >
               Descarregar Model
             </v-btn>
@@ -107,7 +112,7 @@
             >
           </div>
 
-          <v-card class="elevation-1">
+          <v-card class="elevation-1 table-responsive">
             <v-table>
               <thead>
                 <tr class="bg-grey-lighten-4">
@@ -180,7 +185,10 @@
                       Veure Dades
                     </v-btn>
                     <v-btn
-                      v-if="upload.status === 'completed' || upload.status === 'failed'"
+                      v-if="
+                        upload.status === 'completed' ||
+                        upload.status === 'failed'
+                      "
                       icon
                       size="small"
                       variant="text"
@@ -366,22 +374,21 @@ const uploadFiles = async () => {
       const data = await response.json();
       if (response.status !== 202)
         throw new Error(data.error || `Error ${response.status}`);
-      
-      const upload = uploads.value.find(u => u.id === uploadId);
-      if(upload) {
+
+      const upload = uploads.value.find((u) => u.id === uploadId);
+      if (upload) {
         uploadStore.updateUpload(upload.jobId, {
-            status: "queued",
-            message: "En cua de processament...",
-            jobId: data.jobId,
+          status: "queued",
+          message: "En cua de processament...",
+          jobId: data.jobId,
         });
       }
-
     } catch (err) {
-      const upload = uploads.value.find(u => u.id === uploadId);
-      if(upload) {
+      const upload = uploads.value.find((u) => u.id === uploadId);
+      if (upload) {
         uploadStore.updateUpload(upload.jobId, {
-            status: "failed",
-            message: err.message,
+          status: "failed",
+          message: err.message,
         });
       }
       if (!error.value) error.value = "Error en la càrrega dels fitxers.";
@@ -461,3 +468,8 @@ const translateStatus = (status) => {
   return map[status] || status;
 };
 </script>
+<style scoped>
+.table-responsive {
+  overflow-x: auto;
+}
+</style>
