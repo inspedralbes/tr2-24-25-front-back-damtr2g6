@@ -1,10 +1,10 @@
 {
   "compilerOptions": {
-    "allowJs": true,
-    "target": "es5",
+    "target": "esnext",
     "module": "esnext",
-    "baseUrl": "./",
     "moduleResolution": "bundler",
+    "allowJs": true,
+    "baseUrl": "./",
     "paths": {
       "@/*": [
         "src/*"
@@ -16,5 +16,12 @@
       "dom.iterable",
       "scripthost"
     ]
-  }
+  },
+  "include": [
+    "src/**/*",
+    "src/**/*.vue"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }

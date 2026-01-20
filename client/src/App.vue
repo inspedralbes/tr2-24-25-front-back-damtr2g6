@@ -21,12 +21,7 @@
           to="/home"
           color="primary"
         ></v-list-item>
-        <v-list-item
-          prepend-icon="mdi-text-box-search-outline"
-          title="Consulta d'Expedients"
-          to="/search"
-          color="primary"
-        ></v-list-item>
+
         <v-list-item
           v-if="isLoggedIn"
           prepend-icon="mdi-folder-account-outline"
@@ -46,7 +41,7 @@
       </v-list>
     </v-navigation-drawer>
 
-    <v-app-bar elevation="1" color="#005982" density="comfortable">
+    <v-app-bar elevation="2" color="#005982" density="comfortable" class="px-2">
       <template v-slot:prepend>
         <v-app-bar-nav-icon
           v-if="showNavigation"
@@ -55,20 +50,25 @@
         ></v-app-bar-nav-icon>
       </template>
 
-      <v-avatar class="ml-2 mr-3" color="white" rounded="0" size="45">
+      <!-- Logo -->
+      <div 
+        class="d-flex align-center mr-4" 
+        style="height: 48px; min-width: 150px;"
+      >
         <v-img
-          src="https://www.edubcn.cat/img/hdr_logo_ceb_2019.svg"
+          :src="logoWhite"
+          height="45"
+          width="150"
           contain
-          class="pa-1"
         ></v-img>
-      </v-avatar>
+      </div>
 
       <div class="d-flex flex-column">
-        <v-toolbar-title class="font-weight-bold text-white text-body-1">
+        <v-toolbar-title class="font-weight-bold text-white text-body-1 d-none d-sm-block">
           Consorci d'Educació de Barcelona
         </v-toolbar-title>
         <span
-          class="text-caption text-white d-none d-sm-block ml-4"
+          class="text-caption text-white d-none d-md-block"
           style="margin-top: -4px; opacity: 0.9"
         >
           Gestió de Plans Individualitzats (PI)
@@ -77,46 +77,63 @@
 
       <v-spacer></v-spacer>
 
-      <div v-if="showNavigation" class="d-none d-md-flex align-center">
-        <v-btn variant="text" to="/home" class="text-white text-capitalize mx-1"
-          >Extractor</v-btn
-        >
-        <v-btn
-          variant="text"
-          to="/search"
-          class="text-white text-capitalize mx-1"
-          >Cercador</v-btn
-        >
-        <v-btn
-          v-if="isLoggedIn"
-          variant="text"
-          to="/my-pis"
-          class="text-white text-capitalize mx-1"
-          >Expedients</v-btn
-        >
-        <v-btn
-          v-if="isLoggedIn"
-          variant="text"
-          to="/profile"
-          class="text-white text-capitalize mx-1"
-          >Perfil</v-btn
-        >
+      <div v-if="showNavigation" class="d-flex align-center">
+        <!-- Desktop Navigation Links -->
+        <div class="d-none d-md-flex mr-4">
+          <v-btn variant="text" to="/home" class="text-white text-capitalize mx-1" rounded="pill">
+            Extractor
+          </v-btn>
+          <v-btn
+            v-if="isLoggedIn"
+            variant="text"
+            to="/my-pis"
+            class="text-white text-capitalize mx-1"
+            rounded="pill"
+          >
+            Expedients
+          </v-btn>
+        </div>
 
-        <v-divider
-          vertical
-          class="mx-3 border-opacity-50"
-          color="white"
-        ></v-divider>
-
+        <!-- Profile Dropdown -->
+        <v-menu v-if="isLoggedIn" min-width="200px" rounded>
+          <template v-slot:activator="{ props }">
+            <v-btn icon v-bind="props" class="ml-2">
+              <v-avatar color="grey-lighten-2" size="40" class="elevation-2">
+                <v-icon icon="mdi-account" size="28" color="grey-darken-3"></v-icon>
+              </v-avatar>
+            </v-btn>
+          </template>
+          <v-card>
+            <v-list-item class="px-4 pt-3 pb-2">
+              <template v-slot:prepend>
+                 <v-avatar color="#005982" size="40">
+                    <span class="text-h6 text-white font-weight-bold">{{ userData.name.charAt(0).toUpperCase() }}</span>
+                 </v-avatar>
+              </template>
+              <v-list-item-title class="font-weight-bold">{{ userData.name }}</v-list-item-title>
+              <v-list-item-subtitle>{{ userData.email }}</v-list-item-subtitle>
+            </v-list-item>
+            <v-divider class="my-1"></v-divider>
+            <v-list density="compact" nav>
+              <v-list-item prepend-icon="mdi-account-circle-outline" value="profile" to="/profile" color="primary">
+                <v-list-item-title>Veure perfil</v-list-item-title>
+              </v-list-item>
+              <v-list-item prepend-icon="mdi-logout" value="logout" @click="logout" color="error">
+                <v-list-item-title>Tancar sessió</v-list-item-title>
+              </v-list-item>
+            </v-list>
+          </v-card>
+        </v-menu>
+        
+        <!-- Login Button if not logged in -->
         <v-btn
-          v-if="isLoggedIn"
+          v-else
           variant="outlined"
-          @click="logout"
-          color="white"
-          size="small"
-          prepend-icon="mdi-logout"
+          to="/login"
+          class="text-white text-capitalize"
+          rounded="pill"
         >
-          Sortir
+          Iniciar Sessió
         </v-btn>
       </div>
     </v-app-bar>
@@ -154,6 +171,7 @@
 import { ref, onMounted, watch, computed } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useDisplay } from "vuetify";
+import logoWhite from "@/assets/logo_white.svg";
 
 const router = useRouter();
 const route = useRoute();
@@ -161,6 +179,7 @@ const { mdAndUp } = useDisplay();
 
 const drawer = ref(false);
 const isLoggedIn = ref(false);
+const userData = ref({ name: 'Usuari', email: '' });
 
 const showNavigation = computed(() => {
   return !["login", "register"].includes(route.name);
@@ -169,6 +188,17 @@ const showNavigation = computed(() => {
 const checkLoginStatus = () => {
   const user = localStorage.getItem("user");
   isLoggedIn.value = !!user;
+  if (user) {
+    try {
+      const parsed = JSON.parse(user);
+      userData.value = {
+        name: parsed.name || parsed.username || 'Usuari',
+        email: parsed.email || ''
+      };
+    } catch (e) {
+      userData.value = { name: 'Usuari', email: '' }; // Fallback
+    }
+  }
 };
 
 const logout = () => {
