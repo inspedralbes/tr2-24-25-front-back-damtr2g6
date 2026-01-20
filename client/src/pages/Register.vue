@@ -87,7 +87,9 @@
                     v-model="formData.password"
                     label="Contrasenya"
                     prepend-inner-icon="mdi-lock-plus-outline"
-                    type="password"
+                    :type="isPasswordVisible ? 'text' : 'password'"
+                    :append-inner-icon="isPasswordVisible ? 'mdi-eye-off' : 'mdi-eye'"
+                    @click:append-inner="isPasswordVisible = !isPasswordVisible"
                     variant="outlined"
                     density="comfortable"
                     color="#005982"
@@ -186,6 +188,7 @@ const loading = ref(false);
 const loadingCentros = ref(false);
 const mensaje = ref("");
 const tipoMensaje = ref("info");
+const isPasswordVisible = ref(false);
 
 const formData = ref({
   username: '',

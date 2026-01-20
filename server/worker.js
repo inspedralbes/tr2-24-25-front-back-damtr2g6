@@ -43,8 +43,8 @@ async function startWorker() {
                     job.status = 'processing';
                     await job.save();
 
-                    // Perform file extraction
-                    const extractedData = await extractPIdata(filePath);
+                    // Perform file extraction, passing the original filename to determine the extension
+                    const extractedData = await extractPIdata(filePath, originalFileName);
                     console.log(`✅ Extracción de datos completada para ${originalFileName}`);
 
                     // Update job status and result in MongoDB

@@ -53,13 +53,13 @@
 
                 <v-file-input
                   v-model="filesToUpload"
-                  label="Seleccionar fitxers (.docx)"
-                  accept=".docx"
+                  label="Seleccionar fitxers (.docx, .odt)"
+                  accept=".docx,.odt"
                   multiple
                   variant="outlined"
                   density="compact"
                   prepend-icon=""
-                  prepend-inner-icon="mdi-file-word"
+                  prepend-inner-icon="mdi-file-document-outline"
                   show-size
                   chips
                   color="#005982"
