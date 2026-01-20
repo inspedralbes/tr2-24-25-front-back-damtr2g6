@@ -366,23 +366,42 @@ app.post('/api/verify', async (req, res) => {
 // Students Routes
 app.post('/api/students', async (req, res) => {
     try {
-        const { ralc, extractedData, userId } = req.body;
+        const { ralc, extractedData, userId, centerCode } = req.body;
         if (!ralc || !extractedData || !userId) {
             return res.status(400).json({ error: 'Falten dades (ralc, extractedData, userId)' });
         }
 
-        const existingStudent = await Student.findById(ralc);
-        if (existingStudent && existingStudent.ownerId && existingStudent.ownerId !== userId) {
-            return res.status(403).json({ error: 'No tens permís per modificar aquest alumne.' });
+        // Check if user exists and get role
+        const requestingUser = await User.findByPk(userId);
+        if (!requestingUser) {
+            return res.status(401).json({ error: 'Usuari no vàlid.' });
         }
+
+        const existingStudent = await Student.findById(ralc);
+
+        if (existingStudent && existingStudent.ownerId) {
+            // Permission check: Owner OR Admin
+            const isOwner = String(existingStudent.ownerId) === String(userId);
+            const isAdmin = requestingUser.role === 'admin';
+
+            if (!isOwner && !isAdmin) {
+                return res.status(403).json({ error: 'No tens permís per modificar aquest alumne (només el propietari o admin).' });
+            }
+        }
+
         const studentData = {
             name: extractedData.dadesAlumne?.nomCognoms || 'Alumne Desconegut',
             birthDate: extractedData.dadesAlumne?.dataNaixement || 'Data Desconeguda',
             extractedData: extractedData,
-            extractedData: extractedData,
-            ownerId: userId, // Assignar propietari
-            centerCode: req.body.centerCode || null // Guardar código de centro
+            ownerId: userId, // Update owner to last modifier? Or keep original? Usually keep original or update. Let's update for now so they see it in 'My PIs'
+            centerCode: centerCode || requestingUser.center_code || null
         };
+
+        // If existing and we are admin, maybe we don't want to change ownerId if we are just editing? 
+        // For simplicity, if it's a new upload/save, we take ownership or update data.
+        // Let's preserve ownerId if we are Admin editing someone else's? 
+        // The user prompt implies "Importing"/Saving. If I import, it becomes mine?
+        // Let's stick to: Update everything.
 
         const student = await Student.findByIdAndUpdate(ralc, studentData, { new: true, upsert: true });
         res.json({ message: 'Guardado en MongoDB', student });

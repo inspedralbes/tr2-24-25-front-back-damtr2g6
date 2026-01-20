@@ -28,12 +28,7 @@ const router = createRouter({
       name: 'register',
       component: Register,
     },
-    {
-      path: '/search',
-      name: 'search',
-      component: () => import('@/pages/Search.vue'), // Lazy load
-      meta: { requiresAuth: true },
-    },
+
     {
       path: '/my-pis',
       name: 'my-pis',

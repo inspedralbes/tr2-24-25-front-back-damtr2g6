@@ -21,12 +21,7 @@
           to="/home"
           color="primary"
         ></v-list-item>
-        <v-list-item
-          prepend-icon="mdi-text-box-search-outline"
-          title="Consulta d'Expedients"
-          to="/search"
-          color="primary"
-        ></v-list-item>
+
         <v-list-item
           v-if="isLoggedIn"
           prepend-icon="mdi-folder-account-outline"
@@ -51,68 +46,101 @@
       </v-list>
     </v-navigation-drawer>
 
-    <v-app-bar app color="white" height="64" class="border-b" elevation="0">
-      <v-container class="d-flex align-center pa-0 h-100" fluid>
-
+    <v-app-bar elevation="1" color="#005982" density="comfortable">
+      <template v-slot:prepend>
         <v-app-bar-nav-icon
           v-if="showNavigation"
           @click.stop="drawer = !drawer"
-          class="d-md-none"
+          class="d-md-none text-white"
         ></v-app-bar-nav-icon>
+      </template>
 
-        <router-link to="/" class="d-flex align-center text-decoration-none mr-4">
-          <v-img
-            src="https://www.edubcn.cat/img/hdr_logo_ceb_2019.svg"
-            contain
-            width="170"
-            height="50"
-            class="ml-2"
-          ></v-img>
-        </router-link>
+      <!-- Logo -->
+      <div 
+        class="d-flex align-center mr-4" 
+        style="height: 48px; min-width: 150px;"
+      >
+        <v-img
+          :src="logoWhite"
+          height="45"
+          width="150"
+          contain
+        ></v-img>
+      </div>
 
-        <div v-if="showNavigation" class="d-none d-md-flex align-center">
-          <v-btn
-            variant="text"
-            to="/home"
-            class="text-grey-darken-2"
-            >Extractor</v-btn
-          >
-          <v-btn
-            variant="text"
-            to="/search"
-            class="text-grey-darken-2"
-            >Cercador</v-btn
-          >
+      <div class="d-flex flex-column">
+        <v-toolbar-title class="font-weight-bold text-white text-body-1 d-none d-sm-block">
+          Consorci d'Educació de Barcelona
+        </v-toolbar-title>
+        <span
+          class="text-caption text-white d-none d-md-block"
+          style="margin-top: -4px; opacity: 0.9"
+        >
+          Gestió de Plans Individualitzats (PI)
+        </span>
+      </div>
+
+      <v-spacer></v-spacer>
+
+      <div v-if="showNavigation" class="d-flex align-center">
+        <!-- Desktop Navigation Links -->
+        <div class="d-none d-md-flex mr-4">
+          <v-btn variant="text" to="/home" class="text-white text-capitalize mx-1" rounded="pill">
+            Extractor
+          </v-btn>
           <v-btn
             v-if="isLoggedIn"
             variant="text"
             to="/my-pis"
-            class="text-grey-darken-2"
-            >Expedients</v-btn
+            class="text-white text-capitalize mx-1"
+            rounded="pill"
           >
+            Expedients
+          </v-btn>
         </div>
 
-        <v-spacer></v-spacer>
-
-        <div v-if="showNavigation" class="d-none d-md-flex align-center mr-4">
-          <v-menu v-if="isLoggedIn" location="bottom" offset="8">
-            <template v-slot:activator="{ props }">
-               <v-avatar color="grey-lighten-3" size="36" v-bind="props" style="cursor: pointer;">
-                  <v-icon color="grey-darken-1">mdi-account-circle-outline</v-icon>
-                </v-avatar>
-            </template>
-            <v-list density="compact" class="mt-2 py-1">
-              <v-list-subheader class="font-weight-bold">Connectat</v-list-subheader>
-              <v-list-item to="/profile" title="El meu perfil" prepend-icon="mdi-account-box-outline"></v-list-item>
-              <v-divider class="my-1"></v-divider>
-              <v-list-item @click="logout" prepend-icon="mdi-logout-variant">
-                <v-list-item-title class="text-red-darken-2">Desconnectar</v-list-item-title>
+        <!-- Profile Dropdown -->
+        <v-menu v-if="isLoggedIn" min-width="200px" rounded>
+          <template v-slot:activator="{ props }">
+            <v-btn icon v-bind="props" class="ml-2">
+              <v-avatar color="grey-lighten-2" size="40" class="elevation-2">
+                <v-icon icon="mdi-account" size="28" color="grey-darken-3"></v-icon>
+              </v-avatar>
+            </v-btn>
+          </template>
+          <v-card>
+            <v-list-item class="px-4 pt-3 pb-2">
+              <template v-slot:prepend>
+                 <v-avatar color="#005982" size="40">
+                    <span class="text-h6 text-white font-weight-bold">{{ userData.name.charAt(0).toUpperCase() }}</span>
+                 </v-avatar>
+              </template>
+              <v-list-item-title class="font-weight-bold">{{ userData.name }}</v-list-item-title>
+              <v-list-item-subtitle>{{ userData.email }}</v-list-item-subtitle>
+            </v-list-item>
+            <v-divider class="my-1"></v-divider>
+            <v-list density="compact" nav>
+              <v-list-item prepend-icon="mdi-account-circle-outline" value="profile" to="/profile" color="primary">
+                <v-list-item-title>Veure perfil</v-list-item-title>
+              </v-list-item>
+              <v-list-item prepend-icon="mdi-logout" value="logout" @click="logout" color="error">
+                <v-list-item-title>Tancar sessió</v-list-item-title>
               </v-list-item>
             </v-list>
-          </v-menu>
-        </div>
-
-      </v-container>
+          </v-card>
+        </v-menu>
+        
+        <!-- Login Button if not logged in -->
+        <v-btn
+          v-else
+          variant="outlined"
+          to="/login"
+          class="text-white text-capitalize"
+          rounded="pill"
+        >
+          Iniciar Sessió
+        </v-btn>
+      </div>
     </v-app-bar>
 
     <v-main>
@@ -145,38 +173,119 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, computed } from "vue";
+import { ref, onMounted, watch, computed, onUnmounted } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useDisplay } from "vuetify";
+import { useUploadStore } from "@/store/uploadStore";
+import logoWhite from "@/assets/logo_white.svg";
 
 const router = useRouter();
 const route = useRoute();
 const { mdAndUp } = useDisplay();
+const uploadStore = useUploadStore();
 
 const drawer = ref(false);
 const isLoggedIn = ref(false);
+const currentUser = ref(null);
+const userData = ref({ name: 'Usuari', email: '' });
+const ws = ref(null);
+let wsReconnectInterval = null;
 
 const showNavigation = computed(() => {
   return !["login", "register"].includes(route.name);
 });
 
 const checkLoginStatus = () => {
-  const user = localStorage.getItem("user");
-  isLoggedIn.value = !!user;
+  const userStr = localStorage.getItem("user");
+  isLoggedIn.value = !!userStr;
+  if (userStr) {
+    try {
+      const parsed = JSON.parse(userStr);
+      currentUser.value = parsed;
+      userData.value = {
+        name: parsed.name || parsed.username || 'Usuari',
+        email: parsed.email || ''
+      };
+    } catch (e) {
+      currentUser.value = null;
+      userData.value = { name: 'Usuari', email: '' };
+    }
+  } else {
+    currentUser.value = null;
+    userData.value = { name: 'Usuari', email: '' }; // Reset
+  }
+};
+
+const setupWebSocket = () => {
+  if (!currentUser.value?.id) return;
+
+  const wsUrl = `ws://${window.location.hostname}:4001?userId=${currentUser.value.id}`;
+  ws.value = new WebSocket(wsUrl);
+
+  ws.value.onopen = () => {
+    if (wsReconnectInterval) clearInterval(wsReconnectInterval);
+  };
+
+  ws.value.onmessage = (event) => {
+    const notification = JSON.parse(event.data);
+    uploadStore.updateUpload(notification.jobId, {
+      status: notification.status,
+      message: notification.message,
+    });
+    if (notification.status === "completed") {
+      fetchJobResult(notification.jobId);
+    }
+  };
+
+  ws.value.onclose = () => {
+    if (!wsReconnectInterval)
+      wsReconnectInterval = setInterval(setupWebSocket, 5000);
+  };
+};
+
+const fetchJobResult = async (jobId) => {
+  try {
+    const response = await fetch(
+      `/api/jobs/${jobId}?userId=${currentUser.value.id}`
+    );
+    if (!response.ok) throw new Error("Error recuperant dades");
+    const job = await response.json();
+    uploadStore.setUploadResult(jobId, job.result);
+  } catch (e) {
+    uploadStore.updateUpload(jobId, {
+      status: "failed",
+      message: "Error recuperant resultat",
+    });
+  }
 };
 
 const logout = () => {
   localStorage.removeItem("user");
   checkLoginStatus();
+  if (ws.value) {
+    ws.value.close();
+  }
+  uploadStore.clearUploads();
   router.push("/login");
 };
 
 onMounted(() => {
   checkLoginStatus();
+  if (isLoggedIn.value) {
+    setupWebSocket();
+  }
+});
+
+onUnmounted(() => {
+  if (ws.value) ws.value.close();
+  if (wsReconnectInterval) clearInterval(wsReconnectInterval);
 });
 
 watch(route, () => {
   checkLoginStatus();
+  if (isLoggedIn.value && (!ws.value || ws.value.readyState > 1)) {
+     setupWebSocket();
+  }
 });
 
 watch(mdAndUp, (isDesktop) => {
