@@ -200,11 +200,12 @@ const formData = ref({
 
 const verificationCode = ref("");
 const centros = ref([]);
+const API = import.meta.env.VITE_API_BASE || "";
 
 const fetchCentros = async () => {
   loadingCentros.value = true;
   try {
-    const res = await fetch(`/api/centros?t=${Date.now()}`);
+    const res = await fetch(`${API}/api/centros?t=${Date.now()}`);
     if (res.ok) {
       const data = await res.json();
       centros.value = data.map((c) => ({
@@ -267,7 +268,7 @@ const handleRegister = async () => {
   mensaje.value = "";
 
   try {
-    const response = await fetch('/api/register', {
+    const response = await fetch(`${API}/api/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -304,7 +305,7 @@ const handleRegister = async () => {
 const handleVerify = async () => {
   loading.value = true;
   try {
-    const response = await fetch("/api/verify", {
+    const response = await fetch(`${API}/api/verify`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
