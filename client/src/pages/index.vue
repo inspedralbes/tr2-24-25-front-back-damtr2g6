@@ -96,19 +96,6 @@
                 </v-alert>
               </div>
             </v-expand-transition>
-
-            <v-expand-transition>
-              <div v-if="wsStatus !== 'Connected'" class="mt-2">
-                <v-alert
-                  type="warning"
-                  density="compact"
-                  variant="text"
-                  icon="mdi-wifi-off"
-                >
-                  Estat del servei de notificacions: {{ wsStatus }}
-                </v-alert>
-              </div>
-            </v-expand-transition>
           </v-card-text>
         </v-card>
 
@@ -171,7 +158,18 @@
                   </td>
                   <td class="text-right">
                     <v-btn
-                      v-if="upload.status === 'completed'"
+                      v-if="upload.status === 'completed' && !upload.result"
+                      size="small"
+                      variant="flat"
+                      color="orange"
+                      class="text-white"
+                      prepend-icon="mdi-alert-circle"
+                      disabled
+                    >
+                      Processant resultat
+                    </v-btn>
+                    <v-btn
+                      v-if="upload.status === 'completed' && upload.result"
                       size="small"
                       variant="flat"
                       color="#005982"
@@ -181,8 +179,18 @@
                     >
                       Veure Dades
                     </v-btn>
+                    <v-btn
+                      v-if="upload.status === 'completed' || upload.status === 'failed'"
+                      icon
+                      size="small"
+                      variant="text"
+                      @click="removeUpload(upload.id)"
+                      title="Eliminar de la llista"
+                    >
+                      <v-icon>mdi-close</v-icon>
+                    </v-btn>
                     <v-icon
-                      v-else-if="upload.status === 'failed'"
+                      v-if="upload.status === 'failed'"
                       color="error"
                       title="Error en el procés"
                       >mdi-alert-circle</v-icon
@@ -298,36 +306,18 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, onMounted, computed } from "vue";
+import { storeToRefs } from "pinia";
+import { useUploadStore } from "@/store/uploadStore";
 import StudentDataDisplay from "@/components/StudentDataDisplay.vue";
 
-// ... (MANTENER LA MISMA LÓGICA DE SCRIPT QUE TENÍAS, SOLO COPIA EL SCRIPT SETUP DEL ARCHIVO ANTERIOR) ...
-// ... AÑADIR ESTA PEQUEÑA FUNCIÓN AUXILIAR PARA TRADUCIR ESTADOS VISUALMENTE:
-
-const translateStatus = (status) => {
-  const map = {
-    uploading: "Pujant",
-    queued: "En Cua",
-    processing: "Processant IA",
-    completed: "Completat",
-    failed: "Error",
-  };
-  return map[status] || status;
-};
-
-// ... RESTO DEL SCRIPT IGUAL ...
-// Asegúrate de copiar todo el bloque <script setup> de tu versión anterior,
-// añadiendo la función translateStatus arriba.
-
-// Para completar el código, aquí tienes el script setup completo fusionado con el nuevo estilo:
+const uploadStore = useUploadStore();
+const { uploads } = storeToRefs(uploadStore);
 
 const currentUser = ref(null);
 const filesToUpload = ref([]);
-const uploads = ref([]);
 const isLoading = ref(false);
 const error = ref(null);
-const ws = ref(null);
-const wsStatus = ref("Disconnected");
 const apiUrl = "/upload";
 
 const detailsDialog = ref(false);
@@ -339,65 +329,13 @@ const snackbar = ref(false);
 const snackbarText = ref("");
 const snackbarColor = ref("success");
 
-let wsReconnectInterval = null;
-
-const setupWebSocket = () => {
-  if (!currentUser.value?.id) return;
-
-  const wsUrl = `ws://${window.location.hostname}:4001?userId=${currentUser.value.id}`;
-  wsStatus.value = "Connectant...";
-  ws.value = new WebSocket(wsUrl);
-
-  ws.value.onopen = () => {
-    wsStatus.value = "Connected";
-    if (wsReconnectInterval) clearInterval(wsReconnectInterval);
-  };
-
-  ws.value.onmessage = (event) => {
-    const notification = JSON.parse(event.data);
-    const upload = uploads.value.find((u) => u.jobId === notification.jobId);
-
-    if (upload) {
-      upload.status = notification.status;
-      upload.message = notification.message;
-      if (notification.status === "completed") fetchJobResult(upload);
-    }
-  };
-
-  ws.value.onclose = () => {
-    wsStatus.value = "Desconnectat";
-    if (!wsReconnectInterval)
-      wsReconnectInterval = setInterval(setupWebSocket, 5000);
-  };
-};
-
-const fetchJobResult = async (upload) => {
-  try {
-    const response = await fetch(
-      `/api/jobs/${upload.jobId}?userId=${currentUser.value.id}`
-    );
-    if (!response.ok) throw new Error("Error recuperant dades");
-    const job = await response.json();
-    upload.result = job.result;
-  } catch (e) {
-    upload.status = "failed";
-    upload.message = "Error recuperant resultat";
-  }
-};
-
 onMounted(() => {
   const userStr = localStorage.getItem("user");
   if (userStr) {
     currentUser.value = JSON.parse(userStr);
-    setupWebSocket();
   } else {
     error.value = "Sessió caducada.";
   }
-});
-
-onUnmounted(() => {
-  if (ws.value) ws.value.close();
-  if (wsReconnectInterval) clearInterval(wsReconnectInterval);
 });
 
 const clearErrors = () => (error.value = null);
@@ -415,8 +353,9 @@ const uploadFiles = async () => {
       status: "uploading",
       message: "Iniciant càrrega...",
       jobId: null,
+      result: null,
     };
-    uploads.value.unshift(newUpload);
+    uploadStore.addUpload(newUpload);
 
     const formData = new FormData();
     formData.append("piFile", file);
@@ -427,13 +366,24 @@ const uploadFiles = async () => {
       const data = await response.json();
       if (response.status !== 202)
         throw new Error(data.error || `Error ${response.status}`);
+      
+      const upload = uploads.value.find(u => u.id === uploadId);
+      if(upload) {
+        uploadStore.updateUpload(upload.jobId, {
+            status: "queued",
+            message: "En cua de processament...",
+            jobId: data.jobId,
+        });
+      }
 
-      newUpload.status = "queued";
-      newUpload.jobId = data.jobId;
-      newUpload.message = "En cua de processament...";
     } catch (err) {
-      newUpload.status = "failed";
-      newUpload.message = err.message;
+      const upload = uploads.value.find(u => u.id === uploadId);
+      if(upload) {
+        uploadStore.updateUpload(upload.jobId, {
+            status: "failed",
+            message: err.message,
+        });
+      }
       if (!error.value) error.value = "Error en la càrrega dels fitxers.";
     }
   }
@@ -454,8 +404,8 @@ const saveToDatabase = async () => {
         ralc: ralc.value,
         extractedData: selectedUpload.value.result,
         userId: currentUser.value.id,
-        centerCode: currentUser.value.center_code // Enviar código de centro
-      })
+        centerCode: currentUser.value.center_code,
+      }),
     });
 
     const data = await response.json();
@@ -465,9 +415,7 @@ const saveToDatabase = async () => {
     snackbarColor.value = "success";
     snackbar.value = true;
     closeDetailsDialog();
-    uploads.value = uploads.value.filter(
-      (u) => u.id !== selectedUpload.value.id
-    );
+    uploadStore.removeUpload(selectedUpload.value.id);
   } catch (err) {
     saveError.value = "Error: " + err.message;
   } finally {
@@ -489,6 +437,10 @@ const closeDetailsDialog = () => {
   saveError.value = null;
 };
 
+const removeUpload = (uploadId) => {
+  uploadStore.removeUpload(uploadId);
+};
+
 const getColorForStatus = (status) =>
   ({
     uploading: "blue-grey",
@@ -497,4 +449,15 @@ const getColorForStatus = (status) =>
     completed: "success",
     failed: "error",
   }[status] || "grey");
+
+const translateStatus = (status) => {
+  const map = {
+    uploading: "Pujant",
+    queued: "En Cua",
+    processing: "Processant IA",
+    completed: "Completat",
+    failed: "Error",
+  };
+  return map[status] || status;
+};
 </script>
