@@ -173,51 +173,106 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, computed } from "vue";
+import { ref, onMounted, watch, computed, onUnmounted } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useDisplay } from "vuetify";
-import logoWhite from "@/assets/logo_white.svg";
+import { useUploadStore } from "@/store/uploadStore";
 
 const router = useRouter();
 const route = useRoute();
 const { mdAndUp } = useDisplay();
+const uploadStore = useUploadStore();
 
 const drawer = ref(false);
 const isLoggedIn = ref(false);
-const userData = ref({ name: 'Usuari', email: '' });
+const currentUser = ref(null);
+const ws = ref(null);
+let wsReconnectInterval = null;
 
 const showNavigation = computed(() => {
   return !["login", "register"].includes(route.name);
 });
 
 const checkLoginStatus = () => {
-  const user = localStorage.getItem("user");
-  isLoggedIn.value = !!user;
-  if (user) {
-    try {
-      const parsed = JSON.parse(user);
-      userData.value = {
-        name: parsed.name || parsed.username || 'Usuari',
-        email: parsed.email || ''
-      };
-    } catch (e) {
-      userData.value = { name: 'Usuari', email: '' }; // Fallback
+  const userStr = localStorage.getItem("user");
+  isLoggedIn.value = !!userStr;
+  if (userStr) {
+    currentUser.value = JSON.parse(userStr);
+  } else {
+    currentUser.value = null;
+  }
+};
+
+const setupWebSocket = () => {
+  if (!currentUser.value?.id) return;
+
+  const wsUrl = `ws://${window.location.hostname}:4001?userId=${currentUser.value.id}`;
+  ws.value = new WebSocket(wsUrl);
+
+  ws.value.onopen = () => {
+    if (wsReconnectInterval) clearInterval(wsReconnectInterval);
+  };
+
+  ws.value.onmessage = (event) => {
+    const notification = JSON.parse(event.data);
+    uploadStore.updateUpload(notification.jobId, {
+      status: notification.status,
+      message: notification.message,
+    });
+    if (notification.status === "completed") {
+      fetchJobResult(notification.jobId);
     }
+  };
+
+  ws.value.onclose = () => {
+    if (!wsReconnectInterval)
+      wsReconnectInterval = setInterval(setupWebSocket, 5000);
+  };
+};
+
+const fetchJobResult = async (jobId) => {
+  try {
+    const response = await fetch(
+      `/api/jobs/${jobId}?userId=${currentUser.value.id}`
+    );
+    if (!response.ok) throw new Error("Error recuperant dades");
+    const job = await response.json();
+    uploadStore.setUploadResult(jobId, job.result);
+  } catch (e) {
+    uploadStore.updateUpload(jobId, {
+      status: "failed",
+      message: "Error recuperant resultat",
+    });
   }
 };
 
 const logout = () => {
   localStorage.removeItem("user");
   checkLoginStatus();
+  if (ws.value) {
+    ws.value.close();
+  }
+  uploadStore.clearUploads();
   router.push("/login");
 };
 
 onMounted(() => {
   checkLoginStatus();
+  if (isLoggedIn.value) {
+    setupWebSocket();
+  }
+});
+
+onUnmounted(() => {
+  if (ws.value) ws.value.close();
+  if (wsReconnectInterval) clearInterval(wsReconnectInterval);
 });
 
 watch(route, () => {
   checkLoginStatus();
+  if (isLoggedIn.value && (!ws.value || ws.value.readyState > 1)) {
+     setupWebSocket();
+  }
 });
 
 watch(mdAndUp, (isDesktop) => {
