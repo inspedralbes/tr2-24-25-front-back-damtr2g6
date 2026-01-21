@@ -29,6 +29,14 @@
           to="/my-pis"
           color="primary"
         ></v-list-item>
+
+        <v-list-item
+          v-if="isLoggedIn && currentUser?.role === 'admin'"
+          prepend-icon="mdi-account-group"
+          title="Gestió Usuaris"
+          to="/center-users"
+          color="primary"
+        ></v-list-item>
         <div v-if="isLoggedIn">
           <v-divider class="my-2"></v-divider>
           <v-list-item
@@ -97,6 +105,15 @@
           >
             Expedients
           </v-btn>
+          <v-btn
+            v-if="isLoggedIn && currentUser?.role === 'admin'"
+            variant="text"
+            to="/center-users"
+            class="text-white text-capitalize mx-1"
+            rounded="pill"
+          >
+            Gestió Usuaris
+          </v-btn>
         </div>
 
         <!-- Profile Dropdown -->
@@ -112,11 +129,11 @@
             <v-list-item class="px-4 pt-3 pb-2">
               <template v-slot:prepend>
                  <v-avatar color="#005982" size="40">
-                    <span class="text-h6 text-white font-weight-bold">{{ userData.name.charAt(0).toUpperCase() }}</span>
+                    <span class="text-h6 text-white font-weight-bold">{{ userData?.name?.charAt(0)?.toUpperCase() || 'U' }}</span>
                  </v-avatar>
               </template>
-              <v-list-item-title class="font-weight-bold">{{ userData.name }}</v-list-item-title>
-              <v-list-item-subtitle>{{ userData.email }}</v-list-item-subtitle>
+              <v-list-item-title class="font-weight-bold">{{ userData?.name || 'Usuari' }}</v-list-item-title>
+              <v-list-item-subtitle>{{ userData?.email || '' }}</v-list-item-subtitle>
             </v-list-item>
             <v-divider class="my-1"></v-divider>
             <v-list density="compact" nav>
@@ -177,6 +194,7 @@ import { ref, onMounted, watch, computed, onUnmounted } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useDisplay } from "vuetify";
 import { useUploadStore } from "@/store/uploadStore";
+import logoWhite from "@/assets/logo_white.svg";
 
 const router = useRouter();
 const route = useRoute();
@@ -186,6 +204,7 @@ const uploadStore = useUploadStore();
 const drawer = ref(false);
 const isLoggedIn = ref(false);
 const currentUser = ref(null);
+const userData = ref({ name: 'Usuari', email: '' });
 const ws = ref(null);
 let wsReconnectInterval = null;
 
@@ -197,9 +216,21 @@ const checkLoginStatus = () => {
   const userStr = localStorage.getItem("user");
   isLoggedIn.value = !!userStr;
   if (userStr) {
-    currentUser.value = JSON.parse(userStr);
+    try {
+      const parsed = JSON.parse(userStr);
+      currentUser.value = parsed;
+      userData.value = {
+        name: parsed.name || parsed.username || 'Usuari',
+        email: parsed.email || '',
+        role: parsed.role || 'teacher'
+      };
+    } catch (e) {
+      currentUser.value = null;
+      userData.value = { name: 'Usuari', email: '' };
+    }
   } else {
     currentUser.value = null;
+    userData.value = { name: 'Usuari', email: '' }; 
   }
 };
 

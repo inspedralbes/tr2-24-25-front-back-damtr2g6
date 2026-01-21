@@ -206,6 +206,10 @@ app.post('/api/login', async (req, res) => {
             return res.status(403).json({ error: 'Debes verificar tu correo electrónico antes de entrar.' });
         }
 
+        if (!user.isApproved) {
+            return res.status(403).json({ error: 'El teu compte està pendent d\'aprovació per l\'administrador del centre.' });
+        }
+
         // Comprobación de password sigue igual abajo...
 
         const validPassword = await bcrypt.compare(password, user.password);
@@ -294,6 +298,7 @@ app.post('/api/register', async (req, res) => {
             email,
             verificationCode: code,
             isVerified: false,
+            isApproved: role === 'admin', // Admins auto-approve (if email valid), teachers need approval
             role: role
         });
 
@@ -360,6 +365,63 @@ app.post('/api/verify', async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Error al verificar código' });
+    }
+});
+
+// RESEND CODE ENDPOINT
+app.post('/api/resend-code', async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) return res.status(400).json({ error: 'Email obligatorio' });
+
+        const user = await User.findOne({ where: { email } });
+        if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+        if (user.isVerified) return res.status(400).json({ error: 'El usuario ya está verificado' });
+
+        // Generate new code
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        user.verificationCode = code;
+        await user.save();
+
+        console.log(`📨 [RESEND] Enviando nuevo código a ${email}...`);
+
+        const mailOptions = {
+            from: `"Soport - Generalitat" <${process.env.SMTP_USER}>`,
+            to: email,
+            subject: '🔐 Nou codi de verificació',
+            text: `El teu nou codi de verificació és: ${code}`,
+            html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px; background-color: #ffffff;">
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <h2 style="color: #2c3e50; margin: 0;">Nou Codi Sol·licitat</h2>
+                </div>
+                <p style="font-size: 16px; color: #555;">Hola,</p>
+                <p style="font-size: 16px; color: #555;">Aquí tens el nou codi de verificació que has demanat:</p>
+                
+                <div style="background-color: #f0f4f8; padding: 15px; text-align: center; border-radius: 8px; margin: 25px 0;">
+                    <span style="font-size: 28px; font-weight: bold; letter-spacing: 5px; color: #007bff;">
+                        ${code}
+                    </span>
+                </div>
+        
+                <p style="font-size: 14px; color: #777; text-align: center;">Si no has estat tu, canvia la teva contrasenya immediatament.</p>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                <p style="font-size: 12px; color: #aaa; text-align: center;">Institut Pedralbes</p>
+            </div>
+            `
+        };
+
+        try {
+            await transporter.sendMail(mailOptions);
+            res.json({ message: 'Nou codi enviat correctament.' });
+        } catch (mailError) {
+            console.error('⚠️ ERROR AL REENVIAR CORREO:', mailError);
+            res.status(500).json({ error: 'Error al enviar el correu electrònic' });
+        }
+
+    } catch (error) {
+        console.error("Error resending code:", error);
+        res.status(500).json({ error: 'Error del servidor' });
     }
 });
 
@@ -485,6 +547,154 @@ app.post('/api/students/:ralc/authorize', async (req, res) => {
     }
 });
 
+app.post('/api/students/:ralc/transfer', async (req, res) => {
+    try {
+        const { ralc } = req.params;
+        const { userId, targetCenterCode } = req.body;
+
+        if (!userId || !targetCenterCode) return res.status(400).json({ error: 'Falten dades' });
+
+        const student = await Student.findById(ralc);
+        if (!student) return res.status(404).json({ error: 'Alumne no trobat' });
+
+        const isOwner = String(student.ownerId) === String(userId);
+        const isAuthorized = student.authorizedUsers && student.authorizedUsers.includes(parseInt(userId));
+
+        // Allow transfer if owner OR authorized
+        if (!isOwner && !isAuthorized) {
+            return res.status(403).json({ error: 'No tens permís per traspassar aquest alumne.' });
+        }
+
+        student.centerCode = targetCenterCode;
+        await student.save();
+
+        res.json({ message: 'Expedient traspassat correctament al nou centre.' });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error servidor' });
+    }
+});
+
+// Admin Center Management Routes
+app.get('/api/center/users', async (req, res) => {
+    try {
+        const userId = parseInt(req.query.userId);
+        if (!userId) return res.status(401).json({ error: 'Usuari no identificat' });
+
+        const adminUser = await User.findByPk(userId);
+        if (!adminUser || adminUser.role !== 'admin') {
+            return res.status(403).json({ error: 'Accés denegat. Només administradors.' });
+        }
+
+        const users = await User.findAll({
+            where: {
+                center_code: adminUser.center_code,
+                id: { [Op.ne]: userId } // Don't list yourself
+            },
+            attributes: ['id', 'username', 'email', 'role', 'isVerified', 'isApproved', 'createdAt'] // Exclude password/verificationCode
+        });
+
+        res.json(users);
+
+    } catch (error) {
+        console.error("Error fetching center users:", error);
+        res.status(500).json({ error: 'Error al recuperar usuaris' });
+    }
+});
+
+app.delete('/api/center/users/:id', async (req, res) => {
+    try {
+        const userId = parseInt(req.query.userId); // Admin ID
+        const targetId = parseInt(req.params.id); // User to delete
+
+        if (!userId) return res.status(401).json({ error: 'Usuari no identificat' });
+
+        const adminUser = await User.findByPk(userId);
+        if (!adminUser || adminUser.role !== 'admin') {
+            return res.status(403).json({ error: 'Accés denegat.' });
+        }
+
+        const targetUser = await User.findByPk(targetId);
+        if (!targetUser) return res.status(404).json({ error: 'Usuari no trobat.' });
+
+        // Security check: Must belong to same center
+        if (String(targetUser.center_code) !== String(adminUser.center_code)) {
+            return res.status(403).json({ error: 'No pots eliminar usuaris d\'altres centres.' });
+        }
+
+        await targetUser.destroy();
+        res.json({ message: 'Usuari eliminat correctament.' });
+
+    } catch (error) {
+        console.error("Error deleting user:", error);
+        res.status(500).json({ error: 'Error al eliminar usuari' });
+    }
+});
+
+app.put('/api/center/users/:id/role', async (req, res) => {
+    try {
+        const userId = parseInt(req.query.userId); // Admin ID
+        const targetId = parseInt(req.params.id); // User to update
+        const { role } = req.body;
+
+        if (!userId || !role) return res.status(400).json({ error: 'Falten dades (userId, role)' });
+        if (!['admin', 'teacher'].includes(role)) return res.status(400).json({ error: 'Rol invàlid (ha de ser admin o teacher)' });
+
+        const adminUser = await User.findByPk(userId);
+        if (!adminUser || adminUser.role !== 'admin') {
+            return res.status(403).json({ error: 'Accés denegat.' });
+        }
+
+        const targetUser = await User.findByPk(targetId);
+        if (!targetUser) return res.status(404).json({ error: 'Usuari no trobat.' });
+
+        // Security check: Must belong to same center
+        if (String(targetUser.center_code) !== String(adminUser.center_code)) {
+            return res.status(403).json({ error: 'No pots modificar usuaris d\'altres centres.' });
+        }
+
+        targetUser.role = role;
+        await targetUser.save();
+
+        res.json({ message: 'Rol actualitzat correctament.' });
+
+    } catch (error) {
+        console.error("Error updating user role:", error);
+        res.status(500).json({ error: 'Error al actualitzar rol' });
+    }
+});
+
+app.put('/api/center/users/:id/approve', async (req, res) => {
+    try {
+        const userId = parseInt(req.query.userId); // Admin ID
+        const targetId = parseInt(req.params.id); // User to approve
+
+        if (!userId) return res.status(401).json({ error: 'Usuari no identificat' });
+
+        const adminUser = await User.findByPk(userId);
+        if (!adminUser || adminUser.role !== 'admin') {
+            return res.status(403).json({ error: 'Accés denegat.' });
+        }
+
+        const targetUser = await User.findByPk(targetId);
+        if (!targetUser) return res.status(404).json({ error: 'Usuari no trobat.' });
+
+        if (String(targetUser.center_code) !== String(adminUser.center_code)) {
+            return res.status(403).json({ error: 'No pots aprovar usuaris d\'altres centres.' });
+        }
+
+        targetUser.isApproved = true;
+        await targetUser.save();
+
+        res.json({ message: 'Usuari aprovat correctament.' });
+
+    } catch (error) {
+        console.error("Error approving user:", error);
+        res.status(500).json({ error: 'Error al aprovar usuari' });
+    }
+});
+
 app.post('/upload', upload.single('piFile'), async (req, res) => {
     if (!req.file) return res.status(400).send('No file uploaded.');
     if (!channel) return res.status(500).send('RabbitMQ channel not established.');
@@ -588,7 +798,8 @@ sequelize.authenticate()
                     password: '123',
                     center_code: '99999999',
                     role: 'admin',
-                    isVerified: true
+                    isVerified: true,
+                    isApproved: true
                 });
                 console.log("✅ Usuario Admin creado: admin@prueba.app / 123");
             }

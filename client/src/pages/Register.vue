@@ -145,6 +145,19 @@
                   >
                     Verificar i Finalitzar
                   </v-btn>
+
+                  <div class="mt-4 text-center">
+                    <v-btn
+                      variant="text"
+                      size="small"
+                      color="grey-darken-1"
+                      :disabled="!canResend"
+                      @click="handleResendCode"
+                      :loading="resendLoading"
+                    >
+                      {{ canResend ? "No has rebut el codi? Reenviar" : `Reenviar en ${countdown}s` }}
+                    </v-btn>
+                  </div>
                 </div>
               </v-window-item>
             </v-window>
@@ -200,6 +213,49 @@ const formData = ref({
 
 const verificationCode = ref("");
 const centros = ref([]);
+const countdown = ref(30);
+const canResend = ref(false);
+const resendLoading = ref(false);
+let timer = null;
+
+const startCountdown = () => {
+  canResend.value = false;
+  countdown.value = 30;
+  if (timer) clearInterval(timer);
+  timer = setInterval(() => {
+    if (countdown.value > 0) {
+      countdown.value--;
+    } else {
+      canResend.value = true;
+      clearInterval(timer);
+    }
+  }, 1000);
+};
+
+const handleResendCode = async () => {
+  resendLoading.value = true;
+  try {
+    const res = await fetch("/api/resend-code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: formData.value.email }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+        mensaje.value = "Nou codi enviat correctament.";
+        tipoMensaje.value = "success";
+        startCountdown();
+    } else {
+        mensaje.value = data.error || "Error al reenviar";
+        tipoMensaje.value = "error";
+    }
+  } catch (e) {
+      mensaje.value = "Error de connexió";
+      tipoMensaje.value = "error";
+  } finally {
+      resendLoading.value = false;
+  }
+};
 
 const fetchCentros = async () => {
   loadingCentros.value = true;
@@ -281,6 +337,7 @@ const handleRegister = async () => {
     if (response.ok) {
       if (data.needsVerification) {
         step.value = 2; // Passar al pas de verificació
+        startCountdown();
         tipoMensaje.value = "success";
         mensaje.value = `Codi enviat correctament a ${formData.value.email}`;
       } else {

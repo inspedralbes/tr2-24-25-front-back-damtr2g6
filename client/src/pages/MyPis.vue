@@ -167,12 +167,23 @@
                 title="Gestionar Permisos"
                 @click="openAuthDialog(student)"
               ></v-btn>
+
+              <v-btn
+                v-if="isOwner(student) || isAuthorized(student)"
+                variant="text"
+                color="indigo-darken-2"
+                size="small"
+                icon="mdi-domain"
+                title="Traspassar a un altre Centre"
+                @click="openTransferDialog(student)"
+              ></v-btn>
             </v-card-actions>
           </v-card>
         </v-col>
       </v-row>
     </div>
 
+    <!-- AUTH DIALOG -->
     <v-dialog v-model="authDialog" max-width="500">
       <v-card class="rounded-lg">
         <v-toolbar
@@ -221,6 +232,63 @@
       </v-card>
     </v-dialog>
 
+    <!-- TRANSFER DIALOG -->
+    <v-dialog v-model="transferDialog" max-width="500">
+      <v-card class="rounded-lg">
+        <v-toolbar
+          color="indigo-darken-2"
+          density="compact"
+          title="Traspassar Expedient"
+          class="text-white"
+        ></v-toolbar>
+        <v-card-text class="pa-4">
+          <v-alert type="warning" variant="tonal" density="compact" class="mb-4" icon="mdi-alert">
+             Atenció: Estàs a punt de moure aquest expedient a la jurisdicció d'un altre centre.
+          </v-alert>
+          <p class="text-body-2 mb-4">
+            Selecciona el centre de destinació per a l'alumne 
+            <strong>{{ studentToTransfer?.name }}</strong>.
+          </p>
+          
+          <v-autocomplete
+            v-model="targetCenterCode"
+            :items="centrosList"
+            item-title="name"
+            item-value="code"
+            label="Cercar centre educatiu"
+            prepend-inner-icon="mdi-school"
+            variant="outlined"
+            density="comfortable"
+            color="indigo-darken-2"
+            placeholder="Escriu el nom del centre..."
+            no-data-text="No s'han trobat centres"
+          ></v-autocomplete>
+
+          <v-alert
+            v-if="transferError"
+            type="error"
+            variant="tonal"
+            density="compact"
+            class="mt-2"
+            >{{ transferError }}</v-alert
+          >
+        </v-card-text>
+        <v-card-actions class="pa-4 pt-0">
+          <v-spacer></v-spacer>
+          <v-btn variant="text" @click="transferDialog = false">Cancel·lar</v-btn>
+          <v-btn
+            color="indigo-darken-2"
+            variant="flat"
+            :loading="transferLoading"
+            :disabled="!targetCenterCode"
+            @click="transferStudent"
+          >
+            Confirmar Traspàs
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <v-snackbar v-model="snackbar" :color="snackbarColor" location="top right">
       {{ snackbarText }}
       <template v-slot:actions
@@ -258,6 +326,14 @@ const authLoading = ref(false);
 const authError = ref("");
 const studentToAuth = ref(null);
 const targetUsername = ref("");
+
+const transferDialog = ref(false);
+const transferLoading = ref(false);
+const transferError = ref("");
+const studentToTransfer = ref(null);
+const targetCenterCode = ref(null);
+const centrosList = ref([]);
+
 const snackbar = ref(false);
 const snackbarText = ref("");
 const snackbarColor = ref("success");
@@ -267,6 +343,7 @@ onMounted(() => {
   if (userStr) {
     currentUser.value = JSON.parse(userStr);
     fetchMyStudents();
+    fetchCentros();
   } else {
     error.value = 'No has iniciat sessió.';
     loading.value = false;
@@ -276,7 +353,22 @@ onMounted(() => {
 const isAdmin = computed(() => currentUser.value?.role === 'admin');
 
 const isOwner = (student) => {
-  return isAdmin.value || (currentUser.value && student.ownerId === currentUser.value.id);
+  return isAdmin.value || (currentUser.value && String(student.ownerId) === String(currentUser.value.id));
+};
+
+const isAuthorized = (student) => {
+    return currentUser.value && student.authorizedUsers && student.authorizedUsers.includes(currentUser.value.id);
+};
+
+const fetchCentros = async () => {
+  try {
+    const res = await fetch('/api/centros');
+    if (res.ok) {
+      centrosList.value = await res.json();
+    }
+  } catch (e) {
+    console.error("Error fetching centros", e);
+  }
 };
 
 const fetchMyStudents = async () => {
@@ -305,7 +397,7 @@ const fetchMyStudents = async () => {
 };
 
 onMounted(() => {
-  fetchMyStudents();
+  // Logic inside first onMounted
 });
 
 const openAuthDialog = (student) => {
@@ -344,6 +436,47 @@ const authorizeUser = async () => {
     authError.value = e.message;
   } finally {
     authLoading.value = false;
+  }
+};
+
+const openTransferDialog = (student) => {
+  studentToTransfer.value = student;
+  targetCenterCode.value = null;
+  transferError.value = "";
+  transferDialog.value = true;
+};
+
+const transferStudent = async () => {
+  if (!studentToTransfer.value || !targetCenterCode.value) return;
+  transferLoading.value = true;
+  transferError.value = "";
+
+  try {
+    const response = await fetch(
+      `/api/students/${studentToTransfer.value._id}/transfer`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: currentUser.value.id,
+          targetCenterCode: targetCenterCode.value,
+        }),
+      }
+    );
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Error al traspassar");
+
+    snackbarText.value = `Expedient traspassat correctament.`;
+    snackbarColor.value = "success";
+    snackbar.value = true;
+    transferDialog.value = false;
+    // Optionally refresh list or remove item?
+    // fetchMyStudents(); 
+  } catch (e) {
+    transferError.value = e.message;
+  } finally {
+    transferLoading.value = false;
   }
 };
 </script>
