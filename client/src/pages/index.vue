@@ -230,7 +230,7 @@
           <v-btn
             variant="text"
             color="white"
-            @click="saveToDatabase"
+            @click="confirmSaveDialog = true"
             :loading="isSaving"
             :disabled="!ralc"
           >
@@ -283,7 +283,7 @@
                     variant="elevated"
                     :loading="isSaving"
                     :disabled="!ralc"
-                    @click="saveToDatabase"
+                    @click="confirmSaveDialog = true"
                   >
                     Desar a l'Expedient
                   </v-btn>
@@ -292,6 +292,40 @@
             </v-col>
           </v-row>
         </v-container>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="confirmSaveDialog" persistent max-width="450px">
+      <v-card class="rounded-xl pa-2">
+        <div v-if="!showSuccessAnimation">
+            <div class="d-flex justify-end pa-1">
+                <v-btn icon="mdi-close" variant="text" size="small" @click="confirmSaveDialog = false"></v-btn>
+            </div>
+          <v-card-text class="text-center pt-0">
+              <v-icon color="#005982" size="56" class="mb-3">mdi-database-arrow-right-outline</v-icon>
+              <h3 class="text-h6 font-weight-bold mb-2">Desar a l'Expedient</h3>
+              <p class="text-medium-emphasis text-body-2 mx-4">
+                  Aquesta acció desarà les dades de l'alumne amb el RALC <strong>{{ ralc }}</strong>.
+              </p>
+          </v-card-text>
+          <v-card-actions class="justify-center pb-4 px-4">
+              <v-btn
+                block
+                size="large"
+                color="#005982"
+                variant="elevated"
+                class="text-white"
+                @click="confirmAndSave"
+                :loading="isSaving"
+              >
+                Confirmar i Desar
+              </v-btn>
+          </v-card-actions>
+        </div>
+        <div v-else class="d-flex flex-column justify-center align-center text-center" style="min-height: 280px;">
+            <v-icon color="success" size="96" class="mb-3">mdi-check-circle-outline</v-icon>
+            <h3 class="text-h5 font-weight-bold text-grey-darken-2">Guardat amb Èxit</h3>
+        </div>
       </v-card>
     </v-dialog>
 
@@ -336,6 +370,8 @@ const saveError = ref(null);
 const snackbar = ref(false);
 const snackbarText = ref("");
 const snackbarColor = ref("success");
+const confirmSaveDialog = ref(false);
+const showSuccessAnimation = ref(false);
 
 onMounted(() => {
   const userStr = localStorage.getItem("user");
@@ -399,9 +435,10 @@ const uploadFiles = async () => {
 };
 
 const saveToDatabase = async () => {
-  if (!ralc.value || !selectedUpload.value) return;
+  if (!ralc.value || !selectedUpload.value) return false;
   isSaving.value = true;
   saveError.value = null;
+  let success = false;
 
   try {
     const response = await fetch("/api/students", {
@@ -423,10 +460,27 @@ const saveToDatabase = async () => {
     snackbar.value = true;
     uploadStore.removeUpload(selectedUpload.value.id);
     closeDetailsDialog();
+    success = true;
   } catch (err) {
     saveError.value = "Error: " + err.message;
-  } finally {
-    isSaving.value = false;
+  } 
+  return success;
+};
+
+const confirmAndSave = async () => {
+  isSaving.value = true;
+  const savedSuccessfully = await saveToDatabase();
+  isSaving.value = false; // Stop button loading right away
+
+  if (savedSuccessfully) {
+    showSuccessAnimation.value = true;
+    setTimeout(() => {
+      confirmSaveDialog.value = false;
+      // Reset animation state after dialog is closed
+      setTimeout(() => {
+        showSuccessAnimation.value = false;
+      }, 200); // After transition
+    }, 1500);
   }
 };
 
@@ -455,7 +509,7 @@ const getColorForStatus = (status) =>
     processing: "orange-darken-2",
     completed: "success",
     failed: "error",
-  }[status] || "grey");
+  })[status] || "grey";
 
 const translateStatus = (status) => {
   const map = {

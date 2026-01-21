@@ -59,6 +59,54 @@
             class="mb-4"
             hide-details
           ></v-text-field>
+
+          <!-- Filter & Sort Controls -->
+          <v-row class="mt-4">
+            <v-col cols="12" md="4">
+              <v-select
+                v-model="filterDiagnostic"
+                :items="allDiagnosticOptions"
+                label="Filtrar per Diagnòstic"
+                prepend-inner-icon="mdi-doctor"
+                variant="outlined"
+                density="comfortable"
+                color="#005982"
+                clearable
+                hide-details
+              ></v-select>
+            </v-col>
+            <v-col cols="12" md="4">
+              <v-select
+                v-model="filterCourse"
+                :items="allCourses"
+                label="Filtrar per Curs"
+                prepend-inner-icon="mdi-school"
+                variant="outlined"
+                density="comfortable"
+                color="#005982"
+                clearable
+                hide-details
+              ></v-select>
+            </v-col>
+            <v-col cols="12" md="4">
+               <v-select
+                  v-model="sortBy"
+                  :items="[
+                    { title: 'Data (més recents)', value: 'date-desc' },
+                    { title: 'Data (més antics)', value: 'date-asc' },
+                    { title: 'Nom (A-Z)', value: 'name-asc' },
+                    { title: 'Nom (Z-A)', value: 'name-desc' },
+                  ]"
+                  label="Ordenar per"
+                  prepend-inner-icon="mdi-sort"
+                  variant="outlined"
+                  density="comfortable"
+                  color="#005982"
+                  hide-details
+                ></v-select>
+            </v-col>
+          </v-row>
+
         </v-col>
       </v-row>
 
@@ -309,17 +357,78 @@ import StudentDataDisplay from "@/components/StudentDataDisplay.vue";
 const students = ref([]);
 const selectedStudent = ref(null);
 const filteredStudents = computed(() => {
-  if (!searchQuery.value) return students.value;
-  const q = searchQuery.value.toLowerCase();
-  return students.value.filter(s => 
-    s.name?.toLowerCase().includes(q) || 
-    s._id?.toLowerCase().includes(q)
-  );
+  let tempStudents = [...students.value];
+
+  // 1. Search filter
+  if (searchQuery.value) {
+    const q = searchQuery.value.toLowerCase();
+    tempStudents = tempStudents.filter(s => 
+      s.name?.toLowerCase().includes(q) || 
+      s._id?.toLowerCase().includes(q)
+    );
+  }
+
+  // 2. Diagnostic filter
+  if (filterDiagnostic.value) {
+    const filterTerm = filterDiagnostic.value.toLowerCase();
+    tempStudents = tempStudents.filter(s => 
+      s.extractedData?.motiu?.diagnostic?.toLowerCase().includes(filterTerm)
+    );
+  }
+
+  // 3. Course filter
+  if (filterCourse.value) {
+    tempStudents = tempStudents.filter(s => s.extractedData?.dadesAlumne?.curs === filterCourse.value);
+  }
+
+  // 4. Sorting
+  switch (sortBy.value) {
+    case 'name-asc':
+      tempStudents.sort((a, b) => a.name.localeCompare(b.name));
+      break;
+    case 'name-desc':
+      tempStudents.sort((a, b) => b.name.localeCompare(a.name));
+      break;
+    case 'date-asc':
+      tempStudents.sort((a, b) => new Date(a.updatedAt) - new Date(b.updatedAt));
+      break;
+    case 'date-desc':
+      tempStudents.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+      break;
+  }
+  
+  return tempStudents;
 });
 const searchQuery = ref("");
+const sortBy = ref("date-desc"); // Opciones: 'name-asc', 'name-desc', 'date-asc', 'date-desc'
+const filterDiagnostic = ref(null);
+const filterCourse = ref(null);
+
 const loading = ref(true);
 const error = ref(null);
 const currentUser = ref(null);
+
+const allDiagnosticOptions = ref([
+  'Dislèxia',
+  'NEE',
+  'TDAH',
+  'NESE',
+  'Discalculia',
+  'Disgrafia',
+  'Disortografia',
+  'TEA',
+  'Síndrome de Down',
+  'Altes Capacitats'
+]);
+
+const allCourses = computed(() => {
+  if (!students.value) return [];
+  const courses = students.value
+    .map((s) => s.extractedData?.dadesAlumne?.curs)
+    .filter(Boolean);
+  return [...new Set(courses)].sort();
+});
+
 
 const authDialog = ref(false);
 const authLoading = ref(false);

@@ -4,6 +4,14 @@ const path = require('path');
 const fs = require('fs');
 const textract = require('textract');
 
+// Función para eliminar emojis de una cadena de texto
+function stripEmojis(text) {
+    // Regex para encontrar la mayoría de los caracteres emoji Unicode
+    // Adaptado para cubrir un amplio rango sin ser excesivamente agresivo con otros símbolos.
+    // Fuente: https://stackoverflow.com/questions/18929311/javascript-regex-to-remove-all-emojis
+    return text.replace(/(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/g, '');
+}
+
 const OLLAMA_URL = 'http://ollama:11434/api/generate';
 const MODEL_NAME = process.env.MODEL_NAME || 'llama3.2:3b';
 
@@ -133,7 +141,7 @@ async function extractPIdata(filePath, originalFileName) {
                                 lower.includes("alteraci"); 
 
                             if (!isTrash && !lower.match(/^[sS][íi]$|^no$/)) {
-                                extractedLines.push("✅ ADAPTACIÓ: " + candidateText);
+                                extractedLines.push("ADAPTACIÓ: " + candidateText);
                             }
                         }
                     }
@@ -154,12 +162,13 @@ async function extractPIdata(filePath, originalFileName) {
                             !text.match(/^Pel que fa a/i) &&    
                             !text.endsWith(":")) {
                             let cleanText = text.replace(/^[-•]\s*/, "");
-                            extractedLines.push("💡 ORIENTACIÓ: " + cleanText);
+                            extractedLines.push("ORIENTACIÓ: " + cleanText);
                         }
                     }
                 }
             });
             processedContent = extractedLines.join("\n");
+            processedContent = stripEmojis(processedContent);
 
         } catch (e) {
             throw new Error("Error processant DOCX: " + e.message);
@@ -210,6 +219,7 @@ else if (fileExtension === '.odt') {
                 .replace(/\t/g, ' ')
                 .replace(/\n\s+\n/g, '\n\n')
                 .trim();
+            processedContent = stripEmojis(processedContent);
 
             // --- A. ESCÁNER DE NOMBRE (ESTRATEGIA FRANCOTIRADOR + LIMPIEZA) ---
             const headerContext = processedContent.substring(0, 1000); 
