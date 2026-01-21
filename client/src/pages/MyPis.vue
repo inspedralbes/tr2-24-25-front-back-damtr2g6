@@ -132,6 +132,16 @@
                 Data Naixement: {{ student.birthDate }}
               </div>
 
+              <div
+                class="d-flex align-center text-caption text-grey-darken-1 mb-2"
+              >
+                <v-icon size="small" class="mr-2" :color="student.originalFileName ? 'green' : 'grey-lighten-1'">{{ student.originalFileName ? 'mdi-file-check' : 'mdi-file-remove' }}</v-icon>
+                Fitxer Original:
+                <span :class="student.originalFileName ? 'text-green-darken-2 font-weight-medium ml-1' : 'text-grey-lighten-1 ml-1'">
+                  {{ student.originalFileName ? 'Disponible' : 'No enllaçat' }}
+                </span>
+              </div>
+
               <div class="mt-3">
                 <v-chip
                   size="small"
