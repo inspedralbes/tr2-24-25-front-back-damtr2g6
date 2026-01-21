@@ -158,6 +158,18 @@
 
               <v-spacer></v-spacer>
 
+              <!-- BOTÓN DE DESCARGA -->
+              <v-btn
+                :disabled="!student.originalFileName"
+                :href="student.originalFileName ? `/api/students/${student._id}/download?userId=${currentUser.value.id}` : undefined"
+                :target="student.originalFileName ? '_blank' : undefined"
+                variant="text"
+                color="green-darken-2"
+                size="small"
+                icon="mdi-download"
+                :title="student.originalFileName ? 'Descarregar Document Original' : 'Document original no disponible'"
+              ></v-btn>
+
               <v-btn
                 v-if="isOwner(student)"
                 variant="text"
@@ -303,10 +315,6 @@ const fetchMyStudents = async () => {
     loading.value = false;
   }
 };
-
-onMounted(() => {
-  fetchMyStudents();
-});
 
 const openAuthDialog = (student) => {
   studentToAuth.value = student;

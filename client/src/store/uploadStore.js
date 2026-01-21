@@ -8,8 +8,20 @@ export const useUploadStore = defineStore('upload', {
     addUpload(upload) {
       this.uploads.unshift(upload);
     },
+    assignJobId(uploadId, jobId) {
+      const upload = this.uploads.find((u) => u.id === uploadId);
+      if (upload) {
+        upload.jobId = jobId;
+      }
+    },
     updateUpload(jobId, updates) {
       const upload = this.uploads.find((u) => u.jobId === jobId);
+      if (upload) {
+        Object.assign(upload, updates);
+      }
+    },
+    updateUploadById(id, updates) {
+      const upload = this.uploads.find((u) => u.id === id);
       if (upload) {
         Object.assign(upload, updates);
       }

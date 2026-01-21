@@ -367,23 +367,17 @@ const uploadFiles = async () => {
       if (response.status !== 202)
         throw new Error(data.error || `Error ${response.status}`);
       
-      const upload = uploads.value.find(u => u.id === uploadId);
-      if(upload) {
-        uploadStore.updateUpload(upload.jobId, {
-            status: "queued",
-            message: "En cua de processament...",
-            jobId: data.jobId,
-        });
-      }
+      uploadStore.assignJobId(uploadId, data.jobId);
+      uploadStore.updateUpload(data.jobId, {
+          status: "queued",
+          message: "En cua de processament...",
+      });
 
     } catch (err) {
-      const upload = uploads.value.find(u => u.id === uploadId);
-      if(upload) {
-        uploadStore.updateUpload(upload.jobId, {
-            status: "failed",
-            message: err.message,
-        });
-      }
+      uploadStore.updateUploadById(uploadId, {
+          status: "failed",
+          message: err.message,
+      });
       if (!error.value) error.value = "Error en la càrrega dels fitxers.";
     }
   }
@@ -405,6 +399,7 @@ const saveToDatabase = async () => {
         extractedData: selectedUpload.value.result,
         userId: currentUser.value.id,
         centerCode: currentUser.value.center_code,
+        jobId: selectedUpload.value.jobId,
       }),
     });
 

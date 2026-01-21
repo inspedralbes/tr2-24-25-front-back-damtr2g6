@@ -366,15 +366,21 @@ app.post('/api/verify', async (req, res) => {
 // Students Routes
 app.post('/api/students', async (req, res) => {
     try {
-        const { ralc, extractedData, userId, centerCode } = req.body;
-        if (!ralc || !extractedData || !userId) {
-            return res.status(400).json({ error: 'Falten dades (ralc, extractedData, userId)' });
+        const { ralc, extractedData, userId, centerCode, jobId } = req.body;
+        if (!ralc || !extractedData || !userId || !jobId) {
+            return res.status(400).json({ error: 'Falten dades (ralc, extractedData, userId, jobId)' });
         }
 
         // Check if user exists and get role
         const requestingUser = await User.findByPk(userId);
         if (!requestingUser) {
             return res.status(401).json({ error: 'Usuari no vàlid.' });
+        }
+
+        // Trobar el job per obtenir la ruta del fitxer original
+        const job = await Job.findById(jobId);
+        if (!job) {
+            return res.status(404).json({ error: 'Job original no trobat. No es pot enllaçar el fitxer.' });
         }
 
         const existingStudent = await Student.findById(ralc);
@@ -394,7 +400,9 @@ app.post('/api/students', async (req, res) => {
             birthDate: extractedData.dadesAlumne?.dataNaixement || 'Data Desconeguda',
             extractedData: extractedData,
             ownerId: userId, // Update owner to last modifier? Or keep original? Usually keep original or update. Let's update for now so they see it in 'My PIs'
-            centerCode: centerCode || requestingUser.center_code || null
+            centerCode: centerCode || requestingUser.center_code || null,
+            originalFilePath: job.filePath,
+            originalFileName: job.filename
         };
 
         // If existing and we are admin, maybe we don't want to change ownerId if we are just editing? 
@@ -466,6 +474,46 @@ app.get('/api/my-students', async (req, res) => {
     }
 });
 
+app.get('/api/students/:ralc/download', async (req, res) => {
+    try {
+        const { ralc } = req.params;
+        const userId = parseInt(req.query.userId);
+
+        if (!userId) return res.status(401).json({ error: 'Usuari no identificat' });
+
+        const student = await Student.findById(ralc);
+        if (!student) return res.status(404).json({ error: 'Expedient no trobat' });
+
+        // Comprovació de seguretat
+        const user = await User.findByPk(userId);
+        if (!user) return res.status(404).json({ error: 'Usuari no trobat' });
+
+        const isOwner = student.ownerId === userId;
+        const isAuthorized = student.authorizedUsers && student.authorizedUsers.includes(userId);
+        const isAdmin = user.role === 'admin' && String(user.center_code) === String(student.centerCode);
+
+        if (!isOwner && !isAuthorized && !isAdmin) {
+            return res.status(403).json({ error: 'No tens permís per descarregar aquest fitxer.' });
+        }
+
+        if (!student.originalFilePath || !fs.existsSync(student.originalFilePath)) {
+            return res.status(404).json({ error: 'El fitxer original no existeix o no ha estat enllaçat.' });
+        }
+
+        res.download(student.originalFilePath, student.originalFileName, (err) => {
+            if (err) {
+                console.error("Error en la descàrrega del fitxer:", err);
+                if (!res.headersSent) {
+                    res.status(500).send('No s\'ha pogut descarregar el fitxer.');
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Error de servidor en la descàrrega:', error);
+        res.status(500).json({ error: 'Error de servidor en la descàrrega' });
+    }
+});
+
 app.post('/api/students/:ralc/authorize', async (req, res) => {
     try {
         const { ralc } = req.params;
@@ -508,37 +556,47 @@ app.post('/upload', upload.single('piFile'), async (req, res) => {
     if (!req.file) return res.status(400).send('No file uploaded.');
     if (!channel) return res.status(500).send('RabbitMQ channel not established.');
 
-    const { userId } = req.body; // Suponiendo que el userId viene en el body
+    const { userId } = req.body;
     if (!userId) {
-        fs.unlinkSync(req.file.path); // Limpiar archivo temporal si no hay userId
+        fs.unlinkSync(req.file.path);
         return res.status(400).send('User ID is required.');
     }
 
-    const jobId = new mongoose.Types.ObjectId(); // Generar un ObjectId para el jobId
-    const filePath = req.file.path;
+    const jobId = new mongoose.Types.ObjectId();
+    const tempFilePath = req.file.path;
     const originalFileName = req.file.originalname;
 
+    // Definir la ruta de guardado permanente
+    const permanentStorageDir = path.join(__dirname, 'uploads', 'saved_files', jobId.toHexString());
+    if (!fs.existsSync(permanentStorageDir)) {
+        fs.mkdirSync(permanentStorageDir, { recursive: true });
+    }
+    const permanentFilePath = path.join(permanentStorageDir, originalFileName);
+
     try {
+        // Copiar el archivo a la ubicación permanente
+        fs.copyFileSync(tempFilePath, permanentFilePath);
+
         // Guardar el estado inicial del trabajo en MongoDB
         const newJob = new Job({
             _id: jobId,
             userId: userId,
             filename: originalFileName,
-            filePath: filePath, // Guardamos la ruta temporal del archivo
+            filePath: permanentFilePath, // Guardamos la ruta permanente
             status: 'queued',
             uploadedAt: new Date(),
         });
         await newJob.save();
 
-        // Enviar mensaje a RabbitMQ
+        // Enviar mensaje a RabbitMQ con la ruta TEMPORAL para que el worker la procese y borre
         const message = {
             jobId: jobId.toHexString(),
-            filePath: filePath,
+            filePath: tempFilePath,
             originalFileName: originalFileName,
             userId: userId,
         };
         channel.sendToQueue('pi_processing_queue', Buffer.from(JSON.stringify(message)), { persistent: true });
-        console.log(`✅ Trabajo ${jobId} encolado para el archivo ${originalFileName}`);
+        console.log(`✅ Trabajo ${jobId} encolado. Archivo guardado en: ${permanentFilePath}`);
 
         res.status(202).json({
             message: 'Archivo subido y encolado para procesamiento.',
@@ -548,7 +606,8 @@ app.post('/upload', upload.single('piFile'), async (req, res) => {
         });
     } catch (error) {
         console.error('❌ Error al encolar el trabajo:', error);
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath); // Limpiar en caso de error
+        if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+        if (fs.existsSync(permanentFilePath)) fs.unlinkSync(permanentFilePath); // Limpiar la copia si algo falló
         res.status(500).send('Error al procesar la subida del archivo.');
     }
 });
