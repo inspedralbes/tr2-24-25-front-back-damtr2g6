@@ -86,7 +86,7 @@ const fetchCentros = async () => {
   loadingCentros.value = true;
   try {
     // const res = await fetch(`/api/centros?t=${Date.now()}`);
-    const res = await fetch(`${API}/api/centros?t=${Date.now()}`);
+    const res = await fetch(`/api/centros?t=${Date.now()}`);
 
     if (!res.ok) throw new Error(`Error HTTP: ${res.status}`);
     const data = await res.json();
@@ -115,7 +115,7 @@ const submitLogin = async () => {
 
   try {
     // const response = await fetch("/api/login", {
-    const response = await fetch(`${API}/api/login`, {
+    const response = await fetch(`/api/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(credentials.value),

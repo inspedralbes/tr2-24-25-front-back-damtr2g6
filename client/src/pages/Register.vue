@@ -261,7 +261,7 @@ const handleResendCode = async () => {
 const fetchCentros = async () => {
   loadingCentros.value = true;
   try {
-    const res = await fetch(`${API}/api/centros?t=${Date.now()}`);
+    const res = await fetch(`/api/centros?t=${Date.now()}`);
     if (res.ok) {
       const data = await res.json();
       centros.value = data.map((c) => ({
