@@ -202,18 +202,52 @@ app.post('/api/login', async (req, res) => {
 
         if (!user) return res.status(404).json({ error: 'Usuario no encontrado o no pertenece al centro' });
 
+        // Comprobación de password PRIMERO (Seguridad)
+        const validPassword = await bcrypt.compare(password, user.password);
+        if (!validPassword) return res.status(401).json({ error: 'Contraseña incorrecta' });
+
+        // Si credenciales OK, comprobamos verificación
         if (!user.isVerified) {
-            return res.status(403).json({ error: 'Debes verificar tu correo electrónico antes de entrar.' });
+            // Generar nuevo código y reenviar
+            const code = Math.floor(100000 + Math.random() * 900000).toString();
+            user.verificationCode = code;
+            await user.save();
+
+            console.log(`📨 [LOGIN-RESEND] Enviando código a ${user.email}...`);
+
+            const mailOptions = {
+                from: `"Soport - Generalitat" <${process.env.SMTP_USER}>`,
+                to: user.email,
+                subject: '🔐 Codi de verificació - Login',
+                text: `El teu codi de verificació és: ${code}`,
+                html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px; background-color: #ffffff;">
+                    <h2 style="color: #d35400;">Verificació Pendent</h2>
+                    <p>Has intentat iniciar sessió però el teu compte no estava verificat.</p>
+                    <p>Aquí tens un nou codi:</p>
+                    <div style="background-color: #f0f4f8; padding: 15px; text-align: center; border-radius: 8px;">
+                        <span style="font-size: 28px; font-weight: bold; color: #d35400;">${code}</span>
+                    </div>
+                </div>
+                `
+            };
+
+            try {
+                await transporter.sendMail(mailOptions);
+            } catch (e) {
+                console.error("Error enviando mail login:", e);
+            }
+
+            return res.status(403).json({
+                error: 'Compte no verificat. Hem enviat un nou codi al teu correu.',
+                needsVerification: true,
+                email: user.email
+            });
         }
 
         if (!user.isApproved) {
-            return res.status(403).json({ error: 'El teu compte està pendent d\'aprovació per l\'administrador del centre.' });
+            return res.status(403).json({ error: 'El teu compte està verificat però pendent d\'aprovació per l\'administrador del centre.' });
         }
-
-        // Comprobación de password sigue igual abajo...
-
-        const validPassword = await bcrypt.compare(password, user.password);
-        if (!validPassword) return res.status(401).json({ error: 'Contraseña incorrecta' });
 
         res.json({ message: '¡Login exitoso!', user: { id: user.id, username: user.username, center_code: user.center_code, role: user.role } });
     } catch (error) {
@@ -802,6 +836,13 @@ sequelize.authenticate()
                     isApproved: true
                 });
                 console.log("✅ Usuario Admin creado: admin@prueba.app / 123");
+            } else {
+                // Ensure existing admin is approved (fix for migration)
+                if (!admin.isApproved) {
+                    admin.isApproved = true;
+                    await admin.save();
+                    console.log("✅ Usuario Admin actualizado a APROBADO.");
+                }
             }
         } catch (e) {
             console.error("❌ Error seeding admin:", e);

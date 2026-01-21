@@ -192,9 +192,10 @@
 
 <script setup>
 import { ref, onMounted, computed, watch } from "vue";
-import { useRouter } from "vue-router";
+import { useRouter, useRoute } from "vue-router";
 
 const router = useRouter();
+const route = useRoute();
 const step = ref(1);
 const isFormValid = ref(false);
 const loading = ref(false);
@@ -275,6 +276,21 @@ const fetchCentros = async () => {
   }
 };
 
+onMounted(() => {
+  fetchCentros();
+  
+  // Handle redirect from Login (needs verification)
+  if (route.query.step && route.query.step == 2) {
+      step.value = 2;
+  }
+  if (route.query.email) {
+      formData.value.email = route.query.email;
+  }
+  if (route.query.reason === 'verification_needed') {
+      mensaje.value = "El teu compte necessita verificació. Hem enviat un nou codi.";
+      startCountdown();
+  }
+});
 const handleAdminChange = () => {
     if (formData.value.isAdmin && formData.value.center_code) {
         const center = centros.value.find(c => c.code === formData.value.center_code);
