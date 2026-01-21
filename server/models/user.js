@@ -48,6 +48,10 @@ const User = sequelize.define('User', {
     type: DataTypes.STRING,
     defaultValue: 'teacher', // 'teacher' || 'admin'
     allowNull: false
+  },
+  isApproved: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
   }
 }, {
   hooks: {

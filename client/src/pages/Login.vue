@@ -128,6 +128,18 @@ const submitLogin = async () => {
       await nextTick();
       router.push("/home");
     } else {
+      if (data.needsVerification && data.email) {
+          // Redirigir a la pantalla de verificación
+          router.push({ 
+            path: '/register', 
+            query: { 
+                step: 2, 
+                email: data.email,
+                reason: 'verification_needed' // Optional flag for UI
+            } 
+          });
+          return;
+      }
       errorMessage.value =
         data.error || "Credencials incorrectes o usuari no verificat.";
     }
