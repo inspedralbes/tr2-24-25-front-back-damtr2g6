@@ -500,6 +500,57 @@ app.post('/api/students', async (req, res) => {
         // Let's stick to: Update everything.
 
         const student = await Student.findByIdAndUpdate(ralc, studentData, { new: true, upsert: true });
+
+        // NOTIFICACIÓN EMAIL AL CENTRO
+        try {
+            const targetCenterCode = student.centerCode;
+            if (targetCenterCode) {
+                const centrosPath = path.join(__dirname, 'centros_fixed.json');
+                if (fs.existsSync(centrosPath)) {
+                    const content = fs.readFileSync(centrosPath, 'utf-8');
+                    const centrosData = JSON.parse(content);
+                    const center = centrosData.find(c => String(c.Codi_centre) === String(targetCenterCode));
+
+                    if (center && center["E-mail_centre"]) {
+                        const adminEmail = center["E-mail_centre"];
+                        console.log(`📧 Notificant a centre ${targetCenterCode} (${adminEmail}) sobre nou PI.`);
+
+                        const mailOptions = {
+                            from: `"Consorci Educació" <${process.env.SMTP_USER}>`,
+                            to: adminEmail,
+                            subject: '📄 Nou Expedient PI Disponible',
+                            text: `L'usuari ${requestingUser.username} ha pujat/actualitzat el PI de l'alumne ${studentData.name} (${ralc}).`,
+                            html: `
+                           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px; background-color: #ffffff;">
+                               <div style="text-align: center; margin-bottom: 20px;">
+                                   <h2 style="color: #2c3e50; margin: 0;">Nou Expedient PI</h2>
+                               </div>
+                               <p style="font-size: 16px; color: #555;">Hola,</p>
+                               <p style="font-size: 16px; color: #555;">S'ha pujat o actualitzat un expedient al vostre centre:</p>
+                               
+                               <div style="background-color: #f0f4f8; padding: 20px; border-radius: 8px; margin: 25px 0; text-align: left;">
+                                   <p style="margin: 5px 0; color: #555;"><strong>Alumne:</strong> ${studentData.name}</p>
+                                   <p style="margin: 5px 0; color: #555;"><strong>RALC:</strong> ${ralc}</p>
+                                   <p style="margin: 5px 0; color: #555;"><strong>Usuari:</strong> ${requestingUser.username}</p>
+                                   <p style="margin: 5px 0; color: #555;"><strong>Data:</strong> ${new Date().toLocaleDateString('es-ES')}</p>
+                               </div>
+                       
+                               <p style="font-size: 14px; color: #777; text-align: center;">Podeu accedir a la plataforma per veure'n els detalls.</p>
+                               <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                               <p style="font-size: 12px; color: #aaa; text-align: center;">Institut Pedralbes</p>
+                           </div>
+                        `
+                        };
+
+                        // Fire and forget - don't await blocking
+                        transporter.sendMail(mailOptions).catch(e => console.error("❌ Fallo envío mail centro:", e));
+                    }
+                }
+            }
+        } catch (emailErr) {
+            console.error("❌ Error enviant notificació al centre:", emailErr);
+        }
+
         res.json({ message: 'Guardado en MongoDB', student });
     } catch (error) {
         console.error(error);
@@ -527,7 +578,79 @@ app.get('/api/students/:ralc', async (req, res) => {
         res.json(student);
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: 'Error servidor' });
+    }
+});
+
+app.delete('/api/students/:ralc', async (req, res) => {
+    try {
+        const { ralc } = req.params;
+        const userId = parseInt(req.query.userId);
+
+        if (!userId) return res.status(401).json({ error: 'Usuari no identificat' });
+
+        const student = await Student.findById(ralc);
+        if (!student) return res.status(404).json({ error: 'Expedient no trobat' });
+
+        const requestUser = await User.findByPk(userId);
+        if (!requestUser) return res.status(404).json({ error: 'Usuari sol·licitant no existeix' });
+
+        const isOwner = String(student.ownerId) === String(userId);
+        // Admin del mismo centro puede borrar
+        const isAdmin = requestUser.role === 'admin' && String(requestUser.center_code) === String(student.centerCode);
+
+        if (!isOwner && !isAdmin) {
+            return res.status(403).json({ error: 'No tens permisos per eliminar aquest expedient (Només propietari o admin del centre).' });
+        }
+
+        await Student.findByIdAndDelete(ralc);
+
+        console.log(`🗑️ Expedient ${ralc} eliminat per usuari ${userId}`);
+        res.json({ message: 'Expedient eliminat correctament.' });
+
+    } catch (error) {
+        console.error("Error deleting student:", error);
+        res.status(500).json({ error: 'Error del servidor al eliminar expedient.' });
+    }
+});
+
+// ESTADÍSTICAS (Agregaciones MongoDB)
+app.get('/api/stats', async (req, res) => {
+    try {
+        const userId = parseInt(req.query.userId);
+        if (!userId) return res.status(401).json({ error: 'Usuari no identificat' });
+
+        const user = await User.findByPk(userId);
+        if (!user || user.role !== 'admin') {
+            return res.status(403).json({ error: 'Accés denegat: Només administradors.' });
+        }
+
+        const stats = await Student.aggregate([
+            { $match: { centerCode: String(user.center_code) } },
+            {
+                $facet: {
+                    // Agrupación 1: Alumnos por Curso
+                    byCourse: [
+                        { $group: { _id: "$extractedData.curs", count: { $sum: 1 } } },
+                        { $sort: { _id: 1 } }
+                    ],
+                    // Agrupación 2: Diagnósticos más comunes
+                    byDiagnosis: [
+                        { $group: { _id: "$extractedData.motiu", count: { $sum: 1 } } },
+                        { $sort: { count: -1 } },
+                        { $limit: 10 }
+                    ],
+                    // Totales
+                    totalInfo: [
+                        { $count: "total" }
+                    ]
+                }
+            }
+        ]);
+
+        res.json(stats[0]); // Facet devuelve un array con un objeto
+    } catch (e) {
+        console.error("Error stats:", e);
+        res.status(500).json({ error: 'Error generant estadístiques' });
     }
 });
 
@@ -782,7 +905,7 @@ app.post('/upload', upload.single('piFile'), async (req, res) => {
             userId: userId,
         };
         channel.sendToQueue('pi_processing_queue', Buffer.from(JSON.stringify(message)), { persistent: true });
-        console.log(`✅ Trabajo ${jobId} encolado para el archivo ${originalFileName}`);
+        console.log(`✅ Trabajo ${jobId} encolado para el archivo ${originalFileName} `);
 
         res.status(202).json({
             message: 'Archivo subido y encolado para procesamiento.',
@@ -820,7 +943,7 @@ app.get('/api/jobs/:jobId', async (req, res) => {
         res.json(job);
 
     } catch (error) {
-        console.error(`Error fetching job ${req.params.jobId}:`, error);
+        console.error(`Error fetching job ${req.params.jobId}: `, error);
         res.status(500).json({ error: 'Server error while fetching job details.' });
     }
 });
@@ -842,7 +965,7 @@ sequelize.authenticate()
 
         // Seed Admin
         try {
-            const adminEmail = 'admin@prueba.app';
+            const adminEmail = 'hugocor0609@gmail.com';
             let admin = await User.findOne({ where: { email: adminEmail } });
             if (!admin) {
                 await User.create({
@@ -854,7 +977,7 @@ sequelize.authenticate()
                     isVerified: true,
                     isApproved: true
                 });
-                console.log("✅ Usuario Admin creado: admin@prueba.app / 123");
+                console.log(`✅ Usuario Admin creado: ${adminEmail} / 123`);
             } else {
                 // Ensure existing admin is approved (fix for migration)
                 if (!admin.isApproved) {
