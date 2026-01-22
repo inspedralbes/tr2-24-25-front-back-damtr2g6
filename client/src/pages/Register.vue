@@ -339,7 +339,7 @@ const handleRegister = async () => {
   mensaje.value = "";
 
   try {
-    const response = await fetch(`${API}/api/register`, {
+    const response = await fetch(`/api/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -377,7 +377,7 @@ const handleRegister = async () => {
 const handleVerify = async () => {
   loading.value = true;
   try {
-    const response = await fetch(`${API}/api/verify`, {
+    const response = await fetch(`/api/verify`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

@@ -33,15 +33,37 @@
                 >Gestió i custòdia de Plans Individualitzats</span
               >
             </div>
-            <v-btn
-              variant="outlined"
-              color="#005982"
-              prepend-icon="mdi-refresh"
-              @click="fetchMyStudents"
-              :loading="loading"
-            >
-              Actualitzar
-            </v-btn>
+            <div>
+              <v-btn
+                v-if="isAdmin"
+                variant="flat"
+                color="indigo-darken-2"
+                prepend-icon="mdi-view-dashboard"
+                class="mr-3"
+                @click="router.push('/dashboard')"
+              >
+                Anar al Dashboard
+              </v-btn>
+              <v-btn
+                v-if="isAdmin"
+                variant="flat"
+                color="blue-grey-darken-2"
+                prepend-icon="mdi-download"
+                class="mr-3"
+                @click="downloadTestPi()"
+              >
+                Descargar PI de Prueba
+              </v-btn>
+              <v-btn
+                variant="outlined"
+                color="#005982"
+                prepend-icon="mdi-refresh"
+                @click="fetchMyStudents"
+                :loading="loading"
+              >
+                Actualitzar
+              </v-btn>
+            </div>
           </div>
           <v-alert v-if="isAdmin" type="info" variant="tonal" class="mb-4">
             👋 Hola Admin! Estàs veient tots els Projectes Individuals del centre. Pots gestionar permisos de qualsevol PI.
@@ -305,7 +327,9 @@
 <script setup>
 import { ref, onMounted, computed } from "vue";
 import StudentDataDisplay from "@/components/StudentDataDisplay.vue";
+import { useRouter } from "vue-router";
 
+const router = useRouter();
 const students = ref([]);
 const selectedStudent = ref(null);
 const filteredStudents = computed(() => {
@@ -396,9 +420,11 @@ const fetchMyStudents = async () => {
   }
 };
 
-onMounted(() => {
-  // Logic inside first onMounted
-});
+const downloadTestPi = () => {
+    // Abre una nueva ventana/pestaña para iniciar la descarga del archivo de prueba
+    window.open(`/api/download-test-pi?userId=${currentUser.value.id}`, '_blank');
+    showSnackbar("Descargando archivo de prueba...", "info");
+};
 
 const openAuthDialog = (student) => {
   studentToAuth.value = student;

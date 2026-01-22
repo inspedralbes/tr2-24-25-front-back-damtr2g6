@@ -4,6 +4,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import Index from '@/pages/index.vue';
 import Login from '@/pages/Login.vue';
 import Register from '@/pages/Register.vue';
+import PiDashboard from '@/pages/PiDashboard.vue'; // Importa el nuevo componente del Dashboard
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -46,6 +47,11 @@ const router = createRouter({
       name: 'center-users',
       component: () => import('@/pages/CenterUsers.vue'),
       meta: { requiresAuth: true },
+    },
+    {
+      path: '/dashboard', // Nueva ruta para el dashboard
+      name: 'dashboard',
+      component: PiDashboard,
     },
   ],
 });
