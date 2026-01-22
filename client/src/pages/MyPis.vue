@@ -33,98 +33,38 @@
                 >Gestió i custòdia de Plans Individualitzats</span
               >
             </div>
-            <div class="d-flex">
-                 <v-btn
-                  v-if="isAdmin"
-                  variant="text"
-                  color="#005982"
-                  prepend-icon="mdi-chart-bar"
-                  class="mr-2"
-                  @click="showStats = !showStats"
-                >
-                  {{ showStats ? 'Amagar Estadístiques' : 'Veure Estadístiques' }}
-                </v-btn>
-                <v-btn
-                  variant="outlined"
-                  color="#005982"
-                  prepend-icon="mdi-refresh"
-                  @click="fetchMyStudents"
-                  :loading="loading"
-                >
-                  Actualitzar
-                </v-btn>
+            <div>
+              <v-btn
+                v-if="isAdmin"
+                variant="flat"
+                color="indigo-darken-2"
+                prepend-icon="mdi-view-dashboard"
+                class="mr-3"
+                @click="router.push('/dashboard')"
+              >
+                Anar al Dashboard
+              </v-btn>
+              <v-btn
+                v-if="isAdmin"
+                variant="flat"
+                color="blue-grey-darken-2"
+                prepend-icon="mdi-download"
+                class="mr-3"
+                @click="downloadTestPi()"
+              >
+                Descargar PI de Prueba
+              </v-btn>
+              <v-btn
+                variant="outlined"
+                color="#005982"
+                prepend-icon="mdi-refresh"
+                @click="fetchMyStudents"
+                :loading="loading"
+              >
+                Actualitzar
+              </v-btn>
             </div>
           </div>
-          
-          <!-- ADMIN STATS DASHBOARD -->
-          <v-expand-transition>
-            <div v-if="showStats && isAdmin" class="mb-6">
-                <v-card class="bg-grey-lighten-4 pa-4 rounded-lg" variant="flat">
-                    <p class="text-h6 mb-4 text-grey-darken-3 font-weight-medium">
-                        <v-icon color="#005982" class="mr-2">mdi-google-analytics</v-icon>
-                        Estadístiques del Centre
-                    </p>
-                    
-                    <div v-if="statsLoading" class="text-center py-4">
-                        <v-progress-circular indeterminate color="#005982"></v-progress-circular>
-                    </div>
-
-                    <v-row v-else>
-                        <!-- CARD 1: TOTAL -->
-                        <v-col cols="12" md="4">
-                            <v-card class="h-100 pa-4 text-center" color="white" elevation="1">
-                                <div class="text-h2 font-weight-bold text-blue-darken-2 mb-2">
-                                    {{ statsData.totalInfo?.[0]?.total || 0 }}
-                                </div>
-                                <div class="text-subtitle-1 text-grey-darken-1">Expedients Totals</div>
-                            </v-card>
-                        </v-col>
-                        
-                        <!-- CARD 2: BY COURSE -->
-                        <v-col cols="12" md="4">
-                             <v-card class="h-100 pa-4" color="white" elevation="1">
-                                <p class="font-weight-bold mb-2">Alumnes per Curs</p>
-                                <v-divider class="mb-2"></v-divider>
-                                <v-list density="compact" class="pa-0">
-                                    <v-list-item v-for="item in statsData.byCourse" :key="item._id" class="px-0">
-                                        <template v-slot:prepend>
-                                            <v-avatar color="blue-lighten-5" size="24" class="mr-2 text-caption font-weight-bold text-blue-darken-3">
-                                                {{ item.count }}
-                                            </v-avatar>
-                                        </template>
-                                        <v-list-item-title class="text-caption">{{ item._id || 'Desconegut' }}</v-list-item-title>
-                                    </v-list-item>
-                                    <v-list-item v-if="!statsData.byCourse?.length">
-                                        <span class="text-caption text-grey">Sense dades</span>
-                                    </v-list-item>
-                                </v-list>
-                            </v-card>
-                        </v-col>
-
-                        <!-- CARD 3: BY DIAGNOSIS -->
-                         <v-col cols="12" md="4">
-                             <v-card class="h-100 pa-4" color="white" elevation="1">
-                                <p class="font-weight-bold mb-2">Top Diagnòstics</p>
-                                <v-divider class="mb-2"></v-divider>
-                                <v-list density="compact" class="pa-0">
-                                    <v-list-item v-for="item in statsData.byDiagnosis" :key="item._id" class="px-0">
-                                        <template v-slot:prepend>
-                                            <v-avatar color="orange-lighten-5" size="24" class="mr-2 text-caption font-weight-bold text-orange-darken-3">
-                                                {{ item.count }}
-                                            </v-avatar>
-                                        </template>
-                                        <v-list-item-title class="text-caption text-truncate">{{ item._id || 'Sense diagnòstic' }}</v-list-item-title>
-                                    </v-list-item>
-                                     <v-list-item v-if="!statsData.byDiagnosis?.length">
-                                        <span class="text-caption text-grey">Sense dades</span>
-                                    </v-list-item>
-                                </v-list>
-                            </v-card>
-                        </v-col>
-                    </v-row>
-                </v-card>
-            </div>
-          </v-expand-transition>
           <v-alert v-if="isAdmin" type="info" variant="tonal" class="mb-4">
             👋 Hola Admin! Estàs veient tots els Projectes Individuals del centre. Pots gestionar permisos de qualsevol PI.
           </v-alert>
@@ -259,16 +199,6 @@
                 title="Traspassar a un altre Centre"
                 @click="openTransferDialog(student)"
               ></v-btn>
-
-              <v-btn
-                v-if="isOwner(student)"
-                variant="text"
-                color="red-darken-1"
-                size="small"
-                icon="mdi-delete"
-                title="Eliminar Expedient"
-                @click="confirmDelete(student)"
-              ></v-btn>
             </v-card-actions>
           </v-card>
         </v-col>
@@ -381,39 +311,6 @@
       </v-card>
     </v-dialog>
 
-    <!-- DELETE CONFIRMATION DIALOG -->
-    <v-dialog v-model="deleteDialog" max-width="500">
-      <v-card class="rounded-lg">
-        <v-toolbar color="red-darken-1" density="compact" title="Confirmar Eliminació" class="text-white"></v-toolbar>
-        <v-card-text class="pa-4">
-            <div class="text-center mb-4">
-                <v-icon size="64" color="red-lighten-2">mdi-alert-circle-outline</v-icon>
-            </div>
-            <p class="text-body-1 text-center font-weight-medium">
-                Estàs segur que vols eliminar l'expedient de <br> 
-                <span class="text-red-darken-2">{{ studentToDelete?.name }}</span>?
-            </p>
-            <p class="text-caption text-grey text-center mt-2">
-                Aquesta acció és irreversible i eliminarà totes les dades associades.
-            </p>
-        </v-card-text>
-        <v-card-actions class="pa-4 pt-0 justify-center">
-             <v-btn variant="outlined" color="grey-darken-1" @click="deleteDialog = false" class="mr-2">
-                Cancel·lar
-             </v-btn>
-             <v-btn
-                color="red-darken-1"
-                variant="flat"
-                :loading="deleteLoading"
-                prepend-icon="mdi-delete"
-                @click="deleteStudentAction"
-             >
-                Eliminar Definitivament
-             </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-
     <v-snackbar v-model="snackbar" :color="snackbarColor" location="top right">
       {{ snackbarText }}
       <template v-slot:actions
@@ -430,7 +327,9 @@
 <script setup>
 import { ref, onMounted, computed } from "vue";
 import StudentDataDisplay from "@/components/StudentDataDisplay.vue";
+import { useRouter } from "vue-router";
 
+const router = useRouter();
 const students = ref([]);
 const selectedStudent = ref(null);
 const filteredStudents = computed(() => {
@@ -521,9 +420,11 @@ const fetchMyStudents = async () => {
   }
 };
 
-onMounted(() => {
-  // Logic inside first onMounted
-});
+const downloadTestPi = () => {
+    // Abre una nueva ventana/pestaña para iniciar la descarga del archivo de prueba
+    window.open(`/api/download-test-pi?userId=${currentUser.value.id}`, '_blank');
+    showSnackbar("Descargando archivo de prueba...", "info");
+};
 
 const openAuthDialog = (student) => {
   studentToAuth.value = student;
@@ -603,44 +504,6 @@ const transferStudent = async () => {
   } finally {
     transferLoading.value = false;
   }
-};
-
-const deleteDialog = ref(false);
-const deleteLoading = ref(false);
-const studentToDelete = ref(null);
-
-const confirmDelete = (student) => {
-  studentToDelete.value = student;
-  deleteDialog.value = true;
-};
-
-const deleteStudentAction = async () => {
-    if (!studentToDelete.value) return;
-    deleteLoading.value = true;
-    
-    try {
-        const response = await fetch(`/api/students/${studentToDelete.value._id}?userId=${currentUser.value.id}`, {
-            method: 'DELETE'
-        });
-
-        if (!response.ok) {
-           const data = await response.json();
-           throw new Error(data.error || 'Error al eliminar');
-        }
-
-        snackbarText.value = 'Expedient eliminat correctament';
-        snackbarColor.value = 'success';
-        snackbar.value = true;
-        fetchMyStudents(); 
-        deleteDialog.value = false;
-    } catch (e) {
-        snackbarText.value = e.message;
-        snackbarColor.value = 'error';
-        snackbar.value = true;
-    } finally {
-        deleteLoading.value = false;
-        studentToDelete.value = null;
-    }
 };
 </script>
 

@@ -1,5 +1,5 @@
 <template>
-  <v-container class="py-8 bg-grey-lighten-5 fill-height align-start">
+  <v-container class="py-8 bg-grey-lighten-5">
     <div class="w-100">
       <!-- HEADER HEADER -->
       <div class="mb-8">
@@ -31,21 +31,21 @@
       <!-- STATS CARDS -->
       <v-row class="mb-6">
           <v-col cols="12" sm="4">
-              <v-card class="py-4 px-2 text-center rounded-xl elevation-2" color="white">
+              <v-card class="py-4 px-2 text-center rounded-xl elevation-2" color="white" :loading="loading">
                   <v-icon color="blue" size="large" class="mb-2">mdi-account-group</v-icon>
                   <p class="text-h4 font-weight-bold mb-0 text-blue-darken-2">{{ users.length }}</p>
                   <p class="text-caption text-grey font-weight-bold uppercase">USUARIS TOTALS</p>
               </v-card>
           </v-col>
           <v-col cols="12" sm="4">
-            <v-card class="py-4 px-2 text-center rounded-xl elevation-2" color="white">
+            <v-card class="py-4 px-2 text-center rounded-xl elevation-2" color="white" :loading="loading">
                 <v-icon color="purple" size="large" class="mb-2">mdi-security</v-icon>
                 <p class="text-h4 font-weight-bold mb-0 text-purple-darken-2">{{ adminCount }}</p>
                 <p class="text-caption text-grey font-weight-bold uppercase">ADMINISTRADORS</p>
             </v-card>
         </v-col>
         <v-col cols="12" sm="4">
-            <v-card class="py-4 px-2 text-center rounded-xl elevation-2" color="white">
+            <v-card class="py-4 px-2 text-center rounded-xl elevation-2" color="white" :loading="loading">
                 <v-icon color="orange" size="large" class="mb-2">mdi-account-question</v-icon>
                 <p class="text-h4 font-weight-bold mb-0 text-orange-darken-2">{{ pendingCount }}</p>
                 <p class="text-caption text-grey font-weight-bold uppercase">PENDENTS VERIFICACIÓ</p>
@@ -377,7 +377,8 @@ onMounted(() => {
     const userStr = localStorage.getItem('user');
     if (userStr) {
         currentUser.value = JSON.parse(userStr);
-        fetchUsers();
+        // Ya no se llama a fetchDashboardSummary aquí
+        fetchUsers(); // Fetch user list for all admins
     }
 });
 
