@@ -451,8 +451,8 @@ const removeUpload = (uploadId) => {
 const getColorForStatus = (status) =>
   ({
     uploading: "blue-grey",
-    queued: "grey",
-    processing: "orange-darken-2",
+    queued: "blue",
+    processing: "orange",
     completed: "success",
     failed: "error",
   }[status] || "grey");

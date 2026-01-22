@@ -43,6 +43,17 @@ async function startWorker() {
                     job.status = 'processing';
                     await job.save();
 
+                    // Notificar al frontend que el trabajo está ahora en procesamiento
+                    const processingNotification = {
+                        jobId,
+                        userId,
+                        filename: originalFileName,
+                        status: 'processing', // Estado explícito de procesamiento
+                        message: 'L\'arxiu s\'està processant.'
+                    };
+                    channel.sendToQueue('job_notification_queue', Buffer.from(JSON.stringify(processingNotification)), { persistent: true });
+                    console.log(`🔔 Notificación de procesamiento enviada para ${originalFileName}`);
+
                     // Perform file extraction, passing the original filename to determine the extension
                     const extractedData = await extractPIdata(filePath, originalFileName);
                     console.log(`✅ Extracción de datos completada para ${originalFileName}`);
@@ -67,7 +78,7 @@ async function startWorker() {
                         userId,
                         filename: originalFileName,
                         status: 'completed',
-                        message: 'File processed successfully.'
+                        message: 'Arxiu processat correctament.'
                     };
                     channel.sendToQueue('job_notification_queue', Buffer.from(JSON.stringify(notification)), { persistent: true });
 
@@ -82,7 +93,7 @@ async function startWorker() {
                         userId,
                         filename: originalFileName,
                         status: 'failed',
-                        message: error.message || 'An unknown error occurred during processing.'
+                        message: error.message || 'Ha ocorregut un error desconegut durant el processament.'
                     };
                     channel.sendToQueue('job_notification_queue', Buffer.from(JSON.stringify(notification)), { persistent: true });
 
