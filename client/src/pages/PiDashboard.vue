@@ -69,6 +69,72 @@
           </v-col>
       </v-row>
 
+      <!-- NEW ROW: ADAPTATIONS & EFFECTIVENESS -->
+      <v-row class="mb-6">
+        <!-- ADAPTATIONS -->
+        <v-col cols="12" md="6">
+            <v-card class="rounded-xl elevation-3 border h-100" color="white" :loading="loadingDashboard">
+              <v-card-title class="text-subtitle-1 font-weight-bold text-grey-darken-3 d-flex align-center">
+                <v-icon start color="purple-darken-2">mdi-cogs</v-icon> Adaptacions Més Freqüents
+              </v-card-title>
+              <v-card-text class="py-2">
+                <v-table density="compact">
+                    <thead>
+                        <tr>
+                            <th class="text-left font-weight-bold">Adaptació</th>
+                            <th class="text-right font-weight-bold">Freqüència</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="item in dashboardSummary.byAdaptations" :key="item._id">
+                            <td class="text-caption">{{ item._id }}</td>
+                            <td class="text-right"><v-chip size="x-small" color="purple-lighten-5" class="text-purple-darken-2 font-weight-bold">{{ item.count }}</v-chip></td>
+                        </tr>
+                        <tr v-if="!dashboardSummary.byAdaptations?.length">
+                            <td colspan="2" class="text-center text-grey">No hi ha dades disponibles</td>
+                        </tr>
+                    </tbody>
+                </v-table>
+              </v-card-text>
+            </v-card>
+        </v-col>
+
+        <!-- EFFECTIVENESS -->
+        <v-col cols="12" md="6">
+            <v-card class="rounded-xl elevation-3 border h-100" color="white" :loading="loadingDashboard">
+              <v-card-title class="text-subtitle-1 font-weight-bold text-grey-darken-3 d-flex align-center">
+                <v-icon start color="teal-darken-2">mdi-chart-line</v-icon> Efectivitat per Diagnòstic (Valoracions)
+              </v-card-title>
+              <v-card-text class="py-2">
+                 <v-table density="compact">
+                    <thead>
+                        <tr>
+                            <th class="text-left font-weight-bold">Diagnòstic</th>
+                            <th class="text-center font-weight-bold">Val. Mitjana</th>
+                            <th class="text-right font-weight-bold">Nº Val.</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="stat in dashboardSummary.effectivenessStats" :key="stat.diagnosis">
+                            <td class="text-caption font-weight-medium">{{ stat.diagnosis }}</td>
+                            <td class="text-center">
+                                <v-rating :model-value="stat.avgRating" readonly half-increments size="x-small" density="compact" color="amber"></v-rating>
+                                <div class="text-caption text-grey ml-1">
+                                    (A:{{ stat.avgAcademic }} C:{{ stat.avgBehavioral }} E:{{ stat.avgBehavioral }})
+                                </div>
+                            </td>
+                            <td class="text-right">{{ stat.reviewCount }}</td>
+                        </tr>
+                        <tr v-if="!dashboardSummary.effectivenessStats?.length">
+                            <td colspan="3" class="text-center text-grey">Encara no hi ha valoracions registrades.</td>
+                        </tr>
+                    </tbody>
+                </v-table>
+              </v-card-text>
+            </v-card>
+        </v-col>
+      </v-row>
+
       <v-alert v-if="!isAdmin" type="warning" variant="tonal" class="mb-4">
         ⚠️ Aquest dashboard només és visible per a administradors.
       </v-alert>
@@ -123,7 +189,19 @@ const fetchDashboardSummary = async () => {
             const errorData = await res.json();
             throw new Error(errorData.error || "Error al recuperar el resum del dashboard");
         }
-        dashboardSummary.value = await res.json();
+        const summaryData = await res.json();
+        
+        // Fetch Effectiveness Stats separately
+        const effRes = await fetch(`/api/stats/effectiveness?userId=${currentUser.value.id}`);
+        let effectivenessData = [];
+        if (effRes.ok) {
+            effectivenessData = await effRes.json();
+        }
+
+        dashboardSummary.value = {
+            ...summaryData,
+            effectivenessStats: effectivenessData
+        };
     } catch (e) {
         console.error("Error fetching dashboard summary:", e);
         error.value = e.message;

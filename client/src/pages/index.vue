@@ -32,7 +32,7 @@
               color="blue-grey-darken-2"
               variant="elevated"
               prepend-icon="mdi-download"
-              href="/examples/Exemple_PI_Correcte.docx"
+              href="/examples/EXEMPLE_PI_2021-2022.docx"
               target="_blank"
               class="align-self-start align-self-sm-center"
             >

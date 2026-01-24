@@ -16,7 +16,11 @@
              <span class="text-h6 text-grey-darken-3">Detall de l'Expedient</span>
         </v-card-title>
         <v-divider></v-divider>
-        <StudentDataDisplay :student-data="selectedStudent.extractedData" />
+        <StudentDataDisplay 
+          :student-data="selectedStudent.extractedData" 
+          :student-id="selectedStudent._id" 
+          :synthesized-categories="selectedStudent.synthesizedCategories"
+        />
       </v-card>
     </div>
 
@@ -44,16 +48,7 @@
               >
                 Anar al Dashboard
               </v-btn>
-              <v-btn
-                v-if="isAdmin"
-                variant="flat"
-                color="blue-grey-darken-2"
-                prepend-icon="mdi-download"
-                class="mr-3"
-                @click="downloadTestPi()"
-              >
-                Descargar PI de Prueba
-              </v-btn>
+
               <v-btn
                 variant="outlined"
                 color="#005982"
@@ -69,18 +64,95 @@
             👋 Hola Admin! Estàs veient tots els Projectes Individuals del centre. Pots gestionar permisos de qualsevol PI.
           </v-alert>
 
-          <!-- Search Bar -->
-          <v-text-field
-            v-model="searchQuery"
-            label="Cercar per Nom o RALC"
-            prepend-inner-icon="mdi-magnify"
-            variant="outlined"
-            density="comfortable"
-            color="#005982"
-            clearable
-            class="mb-4"
-            hide-details
-          ></v-text-field>
+          <!-- Search Bar & Advanced Search Toggle -->
+          <v-row dense align="center">
+            <v-col cols="12" md="8">
+              <v-text-field
+                v-model="searchQuery"
+                label="Cercar per Nom o RALC"
+                prepend-inner-icon="mdi-magnify"
+                variant="outlined"
+                density="comfortable"
+                color="#005982"
+                clearable
+                hide-details
+                @keyup.enter="handleSearch"
+              ></v-text-field>
+            </v-col>
+            <v-col cols="12" md="4">
+              <v-btn
+                block
+                height="48"
+                :variant="showAdvancedSearch ? 'flat' : 'outlined'"
+                color="#005982"
+                prepend-icon="mdi-filter-cog"
+                @click="showAdvancedSearch = !showAdvancedSearch"
+              >
+                {{ showAdvancedSearch ? 'Amagar Filtres' : 'Cerca Avançada' }}
+              </v-btn>
+            </v-col>
+          </v-row>
+
+          <!-- ADVANCED SEARCH PANEL -->
+          <v-expand-transition>
+            <v-card v-if="showAdvancedSearch" class="mt-4 border pa-4 bg-grey-lighten-5">
+              <v-row dense>
+                <v-col cols="12" md="4">
+                  <v-select
+                    v-model="advancedFilters.curs"
+                    :items="['1r ESO', '2n ESO', '3r ESO', '4t ESO', '1r BATX', '2n BATX']"
+                    label="Filtrar per Curs"
+                    variant="outlined"
+                    density="compact"
+                    clearable
+                    hide-details
+                  ></v-select>
+                </v-col>
+                <v-col cols="12" md="4">
+                  <v-select
+                    v-model="advancedFilters.diagnostic"
+                    :items="diagnosesList"
+                    label="Diagnòstic (Categoria)"
+                    variant="outlined"
+                    density="compact"
+                    clearable
+                    hide-details
+                    placeholder="Selecciona categoria"
+                  ></v-select>
+                </v-col>
+                <v-col cols="12" md="4">
+                  <v-text-field
+                    v-model="advancedFilters.adaptacions"
+                    label="Adaptació (Ex: Temps extra)"
+                    variant="outlined"
+                    density="compact"
+                    clearable
+                    hide-details
+                    placeholder="Separa per comes"
+                  ></v-text-field>
+                </v-col>
+              </v-row>
+              <v-card-actions class="px-0 pt-4">
+                <v-spacer></v-spacer>
+                <v-btn
+                  variant="text"
+                  color="grey-darken-1"
+                  @click="resetFilters"
+                >
+                  Reiniciar
+                </v-btn>
+                <v-btn
+                  color="#005982"
+                  variant="flat"
+                  prepend-icon="mdi-magnify"
+                  @click="performAdvancedSearch"
+                  :loading="loading"
+                >
+                  Cercar ara
+                </v-btn>
+              </v-card-actions>
+            </v-card>
+          </v-expand-transition>
         </v-col>
       </v-row>
 
@@ -190,7 +262,7 @@
                 @click="openAuthDialog(student)"
               ></v-btn>
 
-              <v-btn
+            <v-btn
                 v-if="isOwner(student) || isAuthorized(student)"
                 variant="text"
                 color="indigo-darken-2"
@@ -198,6 +270,16 @@
                 icon="mdi-domain"
                 title="Traspassar a un altre Centre"
                 @click="openTransferDialog(student)"
+              ></v-btn>
+
+              <v-btn
+                v-if="isAdmin"
+                variant="text"
+                color="red-darken-2"
+                size="small"
+                icon="mdi-delete"
+                title="Eliminar Expedient"
+                @click="openDeleteDialog(student)"
               ></v-btn>
             </v-card-actions>
           </v-card>
@@ -311,6 +393,34 @@
       </v-card>
     </v-dialog>
 
+     <!-- DELETE CONFIRMATION DIALOG -->
+     <v-dialog v-model="deleteDialog" max-width="400">
+        <v-card class="rounded-lg">
+            <v-card-title class="text-h6 bg-red-darken-1 text-white py-3">
+                <v-icon start icon="mdi-alert" class="mr-2"></v-icon>
+                Confirmar Eliminació
+            </v-card-title>
+            <v-card-text class="pa-4">
+                <p class="mb-4 text-body-1">Estàs segur que vols eliminar l'expedient de <strong>{{ studentToDelete?.name }}</strong>?</p>
+                
+                <v-alert
+                    type="error"
+                    variant="tonal"
+                    icon="mdi-alert-circle"
+                    title="Acció Irreversible"
+                    class="mb-2"
+                >
+                    Aquesta acció no es pot desfer. Totes les dades del Pla Individualitzat s'eliminaran permanentment.
+                </v-alert>
+            </v-card-text>
+            <v-card-actions class="pa-4 pt-0 bg-grey-lighten-5">
+                <v-spacer></v-spacer>
+                <v-btn variant="text" @click="deleteDialog = false" :disabled="deleteLoading">Cancel•lar</v-btn>
+                <v-btn color="red-darken-1" variant="elevated" @click="deleteStudent" :loading="deleteLoading">Eliminar</v-btn>
+            </v-card-actions>
+        </v-card>
+    </v-dialog>
+
     <v-snackbar v-model="snackbar" :color="snackbarColor" location="top right">
       {{ snackbarText }}
       <template v-slot:actions
@@ -332,15 +442,26 @@ import { useRouter } from "vue-router";
 const router = useRouter();
 const students = ref([]);
 const selectedStudent = ref(null);
-const filteredStudents = computed(() => {
-  if (!searchQuery.value) return students.value;
-  const q = searchQuery.value.toLowerCase();
-  return students.value.filter(s => 
-    s.name?.toLowerCase().includes(q) || 
-    s._id?.toLowerCase().includes(q)
-  );
-});
 const searchQuery = ref("");
+const showAdvancedSearch = ref(false);
+const advancedFilters = ref({
+  curs: null,
+  diagnostic: "",
+  adaptacions: ""
+});
+const diagnosesList = ref([]);
+
+const filteredStudents = computed(() => {
+  // If we are using local search (the simple bar)
+  if (!showAdvancedSearch.value && searchQuery.value) {
+    const q = searchQuery.value.toLowerCase();
+    return students.value.filter(s => 
+      s.name?.toLowerCase().includes(q) || 
+      s._id?.toLowerCase().includes(q)
+    );
+  }
+  return students.value;
+});
 const loading = ref(true);
 const error = ref(null);
 const currentUser = ref(null);
@@ -368,6 +489,7 @@ onMounted(() => {
     currentUser.value = JSON.parse(userStr);
     fetchMyStudents();
     fetchCentros();
+    fetchDiagnoses();
   } else {
     error.value = 'No has iniciat sessió.';
     loading.value = false;
@@ -395,6 +517,18 @@ const fetchCentros = async () => {
   }
 };
 
+const fetchDiagnoses = async () => {
+  if (!currentUser.value) return;
+  try {
+    const res = await fetch(`/api/diagnoses?userId=${currentUser.value.id}`);
+    if (res.ok) {
+      diagnosesList.value = await res.json();
+    }
+  } catch (e) {
+    console.error("Error fetching diagnoses", e);
+  }
+};
+
 const fetchMyStudents = async () => {
   loading.value = true;
   error.value = null;
@@ -417,14 +551,52 @@ const fetchMyStudents = async () => {
     error.value = err.message;
   } finally {
     loading.value = false;
+    fetchDiagnoses();
   }
 };
 
-const downloadTestPi = () => {
-    // Abre una nueva ventana/pestaña para iniciar la descarga del archivo de prueba
-    window.open(`/api/download-test-pi?userId=${currentUser.value.id}`, '_blank');
-    showSnackbar("Descargando archivo de prueba...", "info");
+const handleSearch = () => {
+    if (showAdvancedSearch.value) {
+        performAdvancedSearch();
+    }
 };
+
+const resetFilters = () => {
+    advancedFilters.value = { curs: null, diagnostic: "", adaptacions: "" };
+    searchQuery.value = "";
+    fetchMyStudents();
+};
+
+const performAdvancedSearch = async () => {
+  loading.value = true;
+  error.value = null;
+
+  try {
+    const params = new URLSearchParams();
+    if (searchQuery.value) params.append('query', searchQuery.value);
+    if (advancedFilters.value.curs) params.append('curs', advancedFilters.value.curs);
+    if (advancedFilters.value.diagnostic) params.append('diagnostic', advancedFilters.value.diagnostic);
+    if (advancedFilters.value.adaptacions) params.append('adaptacions', advancedFilters.value.adaptacions);
+    if (currentUser.value?.id) params.append('userId', currentUser.value.id);
+
+    const response = await fetch(`/api/students/search/advanced?${params.toString()}`);
+    if (!response.ok) throw new Error("Error en la cerca avançada");
+    
+    students.value = await response.json();
+    
+    if (students.value.length === 0) {
+        snackbarText.value = "No s'ha trobat cap PI amb aquests criteris.";
+        snackbarColor.value = "info";
+        snackbar.value = true;
+    }
+  } catch (err) {
+    error.value = err.message;
+  } finally {
+    loading.value = false;
+  }
+};
+
+
 
 const openAuthDialog = (student) => {
   studentToAuth.value = student;
@@ -463,6 +635,53 @@ const authorizeUser = async () => {
   } finally {
     authLoading.value = false;
   }
+};
+
+
+const deleteDialog = ref(false);
+const deleteLoading = ref(false);
+const studentToDelete = ref(null);
+
+const openDeleteDialog = (student) => {
+  studentToDelete.value = student;
+  deleteDialog.value = true;
+};
+
+const deleteStudent = async () => {
+    if (!studentToDelete.value) return;
+    deleteLoading.value = true;
+    
+    try {
+        const response = await fetch(`/api/students/${studentToDelete.value._id}?userId=${currentUser.value.id}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.error || 'Error al eliminar');
+        }
+
+        // Remove from local list
+        students.value = students.value.filter(s => s._id !== studentToDelete.value._id);
+        
+        snackbarText.value = "Expedient eliminat correctament";
+        snackbarColor.value = "success";
+        snackbar.value = true;
+        deleteDialog.value = false;
+        
+        // If we were in detail view of this student, go back
+        if (selectedStudent.value && selectedStudent.value._id === studentToDelete.value._id) {
+            selectedStudent.value = null;
+        }
+
+    } catch (e) {
+        snackbarText.value = `Error: ${e.message}`;
+        snackbarColor.value = "error";
+        snackbar.value = true;
+    } finally {
+        deleteLoading.value = false;
+        studentToDelete.value = null;
+    }
 };
 
 const openTransferDialog = (student) => {

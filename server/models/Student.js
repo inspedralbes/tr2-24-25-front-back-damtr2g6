@@ -32,9 +32,16 @@ const studentSchema = new mongoose.Schema({
     }
 }, {
     timestamps: true,
-    _id: false // Disable auto-generation of ObjectId, since we use RALC
+    _id: false, // Disable auto-generation of ObjectId, since we use RALC
+    minimize: false // Ensure empty objects are stored to show schema flexibility
 });
 
+/**
+ * REQUISI MONGODB: Estructura documentada
+ * - Camps variables: extractedData és un Objecte flexible que canvia segons el contingut del PI (Esquema flexible).
+ * - Profunditat: Accés a 3+ nivells (Ex: student.extractedData.dadesAlumne.nomCognoms).
+ * - Arrays: 'authorizedUsers' emmagatzema dades relacionades (IDs d'usuaris).
+ */
 const Student = mongoose.model('Student', studentSchema);
 
 module.exports = Student;

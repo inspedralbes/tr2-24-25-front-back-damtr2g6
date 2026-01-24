@@ -1,5 +1,6 @@
 // server.js
 require('dotenv').config(); // 1. Cargar variables de entorno al inicio
+console.log('🚀 [RESTART] Servidor iniciat amb el motor de síntesi v2.0');
 const express = require('express');
 const multer = require('multer');
 const bcrypt = require('bcrypt');
@@ -14,10 +15,27 @@ const nodemailer = require('nodemailer');
 const { Op } = require('sequelize');
 const amqp = require('amqplib'); // Import amqplib
 const Job = require('./models/Job'); // Import Job model
+const PiReview = require('./models/PiReview'); // Import PiReview model (3rd Collection)
+const Center = require('./models/Center'); // Import Center model (4th Collection for Bulk CRUD)
 const WebSocket = require('ws'); // Import WebSocket module
 
 const app = express();
 const port = process.env.PORT || 4000;
+
+// MAPPING GLOBAL DE DIAGNÒSTICS PER A SÍNTESI I CERCA
+const DIAGNOSTIC_MAPPINGS = [
+    { k: "TDAH", r: "TDAH|dèficit d'atenció|hiperactivitat" },
+    { k: "DISLÈXIA", r: "Dislèxia|Dislexia" },
+    { k: "APRENENTATGE", r: "Dificultats d'aprenentatge|Discalcúlia|Disgrafia|TAN" },
+    { k: "LLENGUATGE", r: "Llenguatge|TDL|TEL|Logopèdia" },
+    { k: "EMOCIONAL", r: "Conducta|Emocional|Ansietat|Depressió" },
+    { k: "DISC. VISUAL", r: "Visual|Ceguesa" },
+    { k: "DISC. AUDITIVA", r: "Auditiva|Sordera" },
+    { k: "DISC. MOTORA", r: "Motora|Paràlisi cerebral" },
+    { k: "TEA", r: "TEA|Autisme|Espectre Autista|Asperger" },
+    { k: "INTEL·LECTUAL", r: "Intel·lectual|Retard|Cognitiu" },
+    { k: "ALTES CAP", r: "Altes Capacitats|Superdotat" }
+];
 
 // Configuración Multer
 const upload = multer({ dest: 'uploads/' });
@@ -42,11 +60,25 @@ if (!fs.existsSync(centrosPath)) {
     }
 }
 
-// MongoDB Connection
+// MongoDB Connection Management
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://admin:1234@mongodb:27017/school_data?authSource=admin';
-mongoose.connect(MONGO_URI)
-    .then(() => console.log('✅ Connectat a MongoDB (School Data)'))
-    .catch(err => console.error('❌ Error connectant a MongoDB:', err));
+
+async function connectMongo() {
+    try {
+        await mongoose.connect(MONGO_URI);
+        console.log('✅ Connectat a MongoDB (School Data)');
+    } catch (err) {
+        console.error('❌ Error connectant a MongoDB:', err);
+    }
+}
+connectMongo();
+
+// Cleanly close connection on app termination
+process.on('SIGINT', async () => {
+    await mongoose.connection.close();
+    console.log('🔌 Connexió a MongoDB tancada (SIGINT)');
+    process.exit(0);
+});
 
 app.use(cors());
 app.use(express.json());
@@ -306,7 +338,7 @@ app.post('/api/register', async (req, res) => {
             const centrosPath = path.join(__dirname, 'centros_fixed.json');
             if (fs.existsSync(centrosPath)) {
                 const content = fs.readFileSync(centrosPath, 'utf-8');
-                    const centrosData = JSON.parse(content); // This line was already correct
+                const centrosData = JSON.parse(content); // This line was already correct
                 const centro = centrosData.find(c => String(c.Codi_centre) === String(center_code));
 
                 if (!centro) {
@@ -603,6 +635,8 @@ app.delete('/api/students/:ralc', async (req, res) => {
         }
 
         await Student.findByIdAndDelete(ralc);
+        // Also delete associated reviews
+        await PiReview.deleteMany({ studentRalc: ralc });
 
         console.log(`🗑️ Expedient ${ralc} eliminat per usuari ${userId}`);
         res.json({ message: 'Expedient eliminat correctament.' });
@@ -613,7 +647,196 @@ app.delete('/api/students/:ralc', async (req, res) => {
     }
 });
 
-// ESTADÍSTICAS (Agregaciones MongoDB)
+// ==========================================
+// RUTAS DE REVIEWS (COLECCIÓN 3)
+// ==========================================
+
+app.post('/api/students/:ralc/reviews', async (req, res) => {
+    try {
+        const { ralc } = req.params;
+        const { userId, rating, comment, effectiveness } = req.body;
+
+        // Basic Validation
+        if (!userId || !rating) return res.status(400).json({ error: 'Falten dades obligatòries (userId, rating)' });
+
+        const user = await User.findByPk(userId);
+        if (!user) return res.status(404).json({ error: 'Usuari no trobat' });
+
+        // Create the review
+        const newReview = await PiReview.create({
+            studentRalc: ralc,
+            authorId: userId,
+            authorName: user.username,
+            rating,
+            comment,
+            effectiveness
+        });
+
+        res.status(201).json(newReview);
+    } catch (error) {
+        console.error("Error creating review:", error);
+        res.status(500).json({ error: 'Error al crear la valoració.' });
+    }
+});
+
+app.get('/api/students/:ralc/reviews', async (req, res) => {
+    try {
+        const reviews = await PiReview.find({ studentRalc: req.params.ralc }).sort({ createdAt: -1 });
+        res.json(reviews);
+    } catch (error) {
+        res.status(500).json({ error: 'Error recuperant valoracions.' });
+    }
+});
+
+
+// ==========================================
+// CONSULTES COMPLEXES (MOTOR DE CERCA)
+// ==========================================
+
+/**
+ * REQUISI MONGODB: Consulta complexa combina múltiples condicions
+ * - Utilitza Dot Notation (extractedData.motiu.diagnostic)
+ * - Utilitza Operadors d'Array ($all)
+ * - Utilitza Operadors Lògics ($and, $or)
+ * - Accedeix a 3+ nivells de profunditat
+ */
+app.get('/api/students/search/advanced', async (req, res) => {
+    try {
+        const { query, curs, diagnostic, adaptacions, userId: userIdRaw } = req.query;
+        const userId = parseInt(userIdRaw);
+        if (!userId) return res.status(401).json({ error: 'Usuari no identificat' });
+
+        const user = await User.findByPk(userId);
+        if (!user) return res.status(404).json({ error: 'Usuari no trobat' });
+
+        // SEGURETAT: Iniciem el filtre amb les restriccions d'accés (com a /api/my-students)
+        let filter = {};
+        if (user.role === 'admin') {
+            filter.centerCode = String(user.center_code);
+        } else {
+            filter.$or = [
+                { ownerId: userId },
+                { authorizedUsers: userId }
+            ];
+        }
+
+        // Filtres addicionals (si existeixen, els afegim amb $and per no sobreescriure el $or de seguretat)
+        const searchConditions = [];
+
+        // 1. Filtre textual simple (Regex)
+        if (query) {
+            searchConditions.push({ name: { $regex: query, $options: 'i' } });
+        }
+
+        // 2. Filtre per Curs (Flexible - Regex)
+        if (curs) {
+            const numMatch = curs.match(/\d+/);
+            const num = numMatch ? numMatch[0] : "";
+            const isBatx = curs.toLowerCase().includes('batx');
+
+            let regexStr = curs.replace(/[^a-zA-Z0-9]/g, '.*');
+            if (num) {
+                const mappedStrings = { "1": "1|Primer", "2": "2|Segon", "3": "3|Tercer", "4": "4|Quart" };
+                const base = mappedStrings[num] || num;
+                regexStr = `(${base}).*${isBatx ? 'BATX' : 'ESO'}`;
+            }
+            searchConditions.push({ 'extractedData.dadesAlumne.curs': { $regex: regexStr, $options: 'i' } });
+        }
+
+        // 3. Filtre per Diagnòstic (Sintetitzat - v2.1)
+        if (diagnostic) {
+            const mapping = DIAGNOSTIC_MAPPINGS.find(m =>
+                m.k === diagnostic.toUpperCase() ||
+                new RegExp(m.r, 'i').test(diagnostic)
+            );
+            const regexToUse = mapping ? mapping.r : diagnostic;
+            searchConditions.push({ 'extractedData.motiu.diagnostic': { $regex: regexToUse, $options: 'i' } });
+        }
+
+        // 4. Filtre per Adaptacions (Cerca flexible amb regex)
+        if (adaptacions) {
+            const adaptList = adaptacions.split(',').filter(a => a.trim() !== "");
+            if (adaptList.length > 0) {
+                searchConditions.push({
+                    'extractedData.adaptacionsGenerals': {
+                        $all: adaptList.map(term => new RegExp(term.trim(), 'i'))
+                    }
+                });
+            }
+        }
+
+        // COMBINEM SEGURETAT + FILTRES (v2.3)
+        if (searchConditions.length > 0) {
+            filter.$and = searchConditions;
+        }
+
+        console.log("🔍 Advanced Search Filter:", JSON.stringify(filter));
+
+        const rawResults = await Student.find(filter).limit(20).lean();
+
+        // SINTETITZAR RESULTATS (v2.2)
+        const results = rawResults.map(student => {
+            const diagText = student.extractedData?.motiu?.diagnostic || "";
+            const matchedCategories = DIAGNOSTIC_MAPPINGS
+                .filter(m => new RegExp(m.r, 'i').test(diagText))
+                .map(m => m.k);
+
+            return {
+                ...student,
+                synthesizedCategories: matchedCategories.length > 0 ? matchedCategories : ["ALTRES"]
+            };
+        });
+
+        res.json(results);
+    } catch (error) {
+        console.error("Error in advanced search:", error);
+        res.status(500).json({ error: 'Error en la cerca avançada.' });
+    }
+});
+
+// ==========================================
+// OPERACIONS CRUD AVANÇADES (ADMIN)
+// ==========================================
+
+/**
+ * REQUISI MONGODB: insertMany i operacions combinades
+ * - Permet carregar centres massivament des del servidor
+ */
+app.post('/api/admin/bulk-import-centers', isAdmin, async (req, res) => {
+    try {
+        const centrosPath = path.join(__dirname, 'centros_fixed.json');
+        if (!fs.existsSync(centrosPath)) throw new Error("Fitxer de centres no trobat.");
+
+        const content = fs.readFileSync(centrosPath, 'utf-8');
+        const centrosData = JSON.parse(content);
+
+        // Mapegem al format del model Center
+        const centersToInsert = centrosData.slice(0, 100).map(c => ({
+            code: String(c.Codi_centre),
+            name: c.Denominació_completa,
+            email: c["E-mail_centre"],
+            type: c.Nom_naturalesa,
+            address: c.Adreça
+        }));
+
+        // REQUISI: insertMany
+        const result = await Center.insertMany(centersToInsert, { ordered: false });
+
+        res.json({
+            message: `S'han importat ${result.length} centres correctament.`,
+            count: result.length
+        });
+    } catch (error) {
+        console.error("Error in bulk import:", error);
+        // Gestió d'errors específica per duplicats (E11000)
+        if (error.code === 11000) {
+            return res.status(409).json({ error: 'Alguns centres ja existien i han estat ignorats.' });
+        }
+        res.status(500).json({ error: 'Error en la importació massiva.' });
+    }
+});
+
+// ESTADÍSTICAS AVANZADAS (AGREGACIONES)
 app.get('/api/stats', async (req, res) => {
     try {
         const userId = parseInt(req.query.userId);
@@ -624,22 +847,67 @@ app.get('/api/stats', async (req, res) => {
             return res.status(403).json({ error: 'Accés denegat: Només administradors.' });
         }
 
+        const centerCode = String(user.center_code);
+
         const stats = await Student.aggregate([
-            { $match: { centerCode: String(user.center_code) } },
+            { $match: { centerCode: centerCode } },
             {
                 $facet: {
-                    // Agrupación 1: Alumnos por Curso
+                    // 1. Alumnos por Curso (SINTETITZAT)
                     byCourse: [
-                        { $group: { _id: "$extractedData.curs", count: { $sum: 1 } } },
+                        {
+                            $addFields: {
+                                normalizedCourse: {
+                                    $switch: {
+                                        branches: [
+                                            { case: { $regexMatch: { input: { $ifNull: ["$extractedData.dadesAlumne.curs", ""] }, regex: "1.*ESO", options: "i" } }, then: "1r ESO" },
+                                            { case: { $regexMatch: { input: { $ifNull: ["$extractedData.dadesAlumne.curs", ""] }, regex: "2.*ESO", options: "i" } }, then: "2n ESO" },
+                                            { case: { $regexMatch: { input: { $ifNull: ["$extractedData.dadesAlumne.curs", ""] }, regex: "3.*ESO", options: "i" } }, then: "3r ESO" },
+                                            { case: { $regexMatch: { input: { $ifNull: ["$extractedData.dadesAlumne.curs", ""] }, regex: "4.*ESO", options: "i" } }, then: "4t ESO" },
+                                            { case: { $regexMatch: { input: { $ifNull: ["$extractedData.dadesAlumne.curs", ""] }, regex: "1.*BATX", options: "i" } }, then: "1r BATX" },
+                                            { case: { $regexMatch: { input: { $ifNull: ["$extractedData.dadesAlumne.curs", ""] }, regex: "2.*BATX", options: "i" } }, then: "2n BATX" }
+                                        ],
+                                        default: "ALTRES"
+                                    }
+                                }
+                            }
+                        },
+                        { $group: { _id: "$normalizedCourse", count: { $sum: 1 } } },
                         { $sort: { _id: 1 } }
                     ],
-                    // Agrupación 2: Diagnósticos más comunes
+                    // 2. Diagnòstics més comuns (Sintetitzat i Diversificat)
                     byDiagnosis: [
-                        { $group: { _id: "$extractedData.motiu", count: { $sum: 1 } } },
+                        {
+                            $addFields: {
+                                diagKeywords: {
+                                    $filter: {
+                                        input: DIAGNOSTIC_MAPPINGS,
+                                        as: "d",
+                                        cond: { $regexMatch: { input: { $ifNull: ["$extractedData.motiu.diagnostic", ""] }, regex: "$$d.r", options: "i" } }
+                                    }
+                                }
+                            }
+                        },
+                        { $unwind: { path: "$diagKeywords", preserveNullAndEmptyArrays: true } },
+                        {
+                            $group: {
+                                _id: { $ifNull: ["$diagKeywords.k", "ALTRES"] },
+                                count: { $sum: 1 }
+                            }
+                        },
+                        { $sort: { count: -1 } },
+                        { $limit: 15 }
+                    ],
+                    // 3. Adaptaciones Recurrentes - AGREGACIÓN COMPLEJA CON ARRAY
+                    byAdaptations: [
+                        { $project: { adaptations: "$extractedData.adaptacionsGenerals" } },
+                        { $unwind: "$adaptations" },
+                        // Limpieza básica (trim y quitar comillas si las hubiera)
+                        { $group: { _id: "$adaptations", count: { $sum: 1 } } },
                         { $sort: { count: -1 } },
                         { $limit: 10 }
                     ],
-                    // Totales
+                    // 4. Totales
                     totalInfo: [
                         { $count: "total" }
                     ]
@@ -647,15 +915,124 @@ app.get('/api/stats', async (req, res) => {
             }
         ]);
 
-        res.json(stats[0]); // Facet devuelve un array con un objeto
+        res.json(stats[0]);
     } catch (e) {
         console.error("Error stats:", e);
         res.status(500).json({ error: 'Error generant estadístiques' });
     }
 });
 
+// NUEVA AGREGACIÓN: Análisis de Efectividad (Reviews + Student Data)
+app.get('/api/stats/effectiveness', async (req, res) => {
+    try {
+        const userId = parseInt(req.query.userId);
+        if (!userId) return res.status(401).json({ error: 'Usuari no identificat' });
+
+        const user = await User.findByPk(userId);
+        if (!user || user.role !== 'admin') return res.status(403).json({ error: "No admin" });
+
+        // Join Reviews with Students to look at effectiveness by diagnosis
+        const effectivenessStats = await PiReview.aggregate([
+            // 1. Lookup student data to get the diagnosis
+            {
+                $lookup: {
+                    from: "students",       // Collection name in MongoDB (lowercase plural usually)
+                    localField: "studentRalc",
+                    foreignField: "_id",
+                    as: "studentInfo"
+                }
+            },
+            // 2. Unwind the array (lookup returns an array)
+            { $unwind: "$studentInfo" },
+            // 3. Filter by Center (Security)
+            { $match: { "studentInfo.centerCode": String(user.center_code) } },
+            // 4. Sintetitzar diagnòstics abans d'agrupar
+            {
+                $addFields: {
+                    diagKeywords: {
+                        $filter: {
+                            input: DIAGNOSTIC_MAPPINGS,
+                            as: "d",
+                            cond: { $regexMatch: { input: { $ifNull: ["$studentInfo.extractedData.motiu.diagnostic", ""] }, regex: "$$d.r", options: "i" } }
+                        }
+                    }
+                }
+            },
+            { $unwind: { path: "$diagKeywords", preserveNullAndEmptyArrays: true } },
+            // 5. Group by Synthesized Diagnosis
+            {
+                $group: {
+                    _id: { $ifNull: ["$diagKeywords.k", "ALTRES"] },
+                    avgRating: { $avg: "$rating" },
+                    avgAcademic: { $avg: "$effectiveness.academic" },
+                    avgBehavioral: { $avg: "$effectiveness.behavioral" },
+                    reviewCount: { $sum: 1 }
+                }
+            },
+            // 5. Project to format output
+            {
+                $project: {
+                    diagnosis: "$_id",
+                    avgRating: { $round: ["$avgRating", 1] },
+                    avgAcademic: { $round: ["$avgAcademic", 1] },
+                    avgBehavioral: { $round: ["$avgBehavioral", 1] },
+                    reviewCount: 1,
+                    _id: 0
+                }
+            },
+            { $sort: { avgRating: -1 } }
+        ]);
+
+        res.json(effectivenessStats);
+
+    } catch (e) {
+        console.error("Error effectiveness stats:", e);
+        res.status(500).json({ error: "Error calculating effectiveness" });
+    }
+});
+
+// Endpoint para obtenir la llista dinàmica de diagnòstics per al filtre (SINTETITZAT)
+app.get('/api/diagnoses', async (req, res) => {
+    try {
+        const userId = parseInt(req.query.userId);
+        if (!userId) return res.status(401).json({ error: 'Usuari no identificat' });
+
+        const user = await User.findByPk(userId);
+        if (!user) return res.status(404).json({ error: 'Usuari no trobat' });
+
+        const centerCode = String(user.center_code);
+
+        // Agregació per obtenir NOMÉS les categories sintetitzades que existeixen al centre
+        const diagnosesResult = await Student.aggregate([
+            { $match: { centerCode: centerCode } },
+            {
+                $addFields: {
+                    diagKeywords: {
+                        $filter: {
+                            input: DIAGNOSTIC_MAPPINGS,
+                            as: "d",
+                            cond: { $regexMatch: { input: { $ifNull: ["$extractedData.motiu.diagnostic", ""] }, regex: "$$d.r", options: "i" } }
+                        }
+                    }
+                }
+            },
+            { $unwind: "$diagKeywords" },
+            { $group: { _id: "$diagKeywords.k" } },
+            { $sort: { _id: 1 } }
+        ]);
+
+        const combined = diagnosesResult.map(d => d._id);
+        res.json(combined);
+
+    } catch (e) {
+        console.error("Error fetching diagnoses list:", e);
+        res.status(500).json({ error: "Error al recuperar la llista de diagnòstics" });
+    }
+});
+
 // Admin Dashboard Summary Endpoint
 app.get('/api/dashboard/summary', async (req, res) => {
+    console.log(`📊 [${new Date().toISOString()}] Dashboard summary request for user ${req.query.userId}`);
     try {
         const userId = parseInt(req.query.userId);
         if (!userId) return res.status(401).json({ error: 'Usuari no identificat' });
@@ -665,6 +1042,8 @@ app.get('/api/dashboard/summary', async (req, res) => {
             return res.status(403).json({ error: 'Accés denegat: Només administradors.' });
         }
 
+        const centerCode = String(user.center_code);
+
         // Ejecutar todas las consultas en paralelo para mayor eficiencia
         const [
             piSummaryByType,
@@ -672,17 +1051,53 @@ app.get('/api/dashboard/summary', async (req, res) => {
             totalUsersCount
         ] = await Promise.all([
             Student.aggregate([
-                { $match: { centerCode: String(user.center_code) } },
-                { $group: { _id: "$extractedData.motiu.diagnostic", count: { $sum: 1 } } },
+                { $match: { centerCode: centerCode } },
+                {
+                    $addFields: {
+                        diagKeywords: {
+                            $filter: {
+                                input: DIAGNOSTIC_MAPPINGS,
+                                as: "d",
+                                cond: { $regexMatch: { input: { $ifNull: ["$extractedData.motiu.diagnostic", ""] }, regex: "$$d.r", options: "i" } }
+                            }
+                        }
+                    }
+                },
+                { $unwind: { path: "$diagKeywords", preserveNullAndEmptyArrays: true } },
+                {
+                    $group: {
+                        _id: { $ifNull: ["$diagKeywords.k", "ALTRES"] },
+                        count: { $sum: 1 }
+                    }
+                },
                 { $sort: { count: -1 } }
             ]),
             Student.aggregate([
-                { $match: { centerCode: String(user.center_code) } },
-                { $group: { _id: "$extractedData.dadesAlumne.curs", count: { $sum: 1 } } },
+                { $match: { centerCode: centerCode } },
+                {
+                    $addFields: {
+                        normalizedCourse: {
+                            $switch: {
+                                branches: [
+                                    { case: { $regexMatch: { input: { $ifNull: ["$extractedData.dadesAlumne.curs", ""] }, regex: "1.*ESO", options: "i" } }, then: "1r ESO" },
+                                    { case: { $regexMatch: { input: { $ifNull: ["$extractedData.dadesAlumne.curs", ""] }, regex: "2.*ESO", options: "i" } }, then: "2n ESO" },
+                                    { case: { $regexMatch: { input: { $ifNull: ["$extractedData.dadesAlumne.curs", ""] }, regex: "3.*ESO", options: "i" } }, then: "3r ESO" },
+                                    { case: { $regexMatch: { input: { $ifNull: ["$extractedData.dadesAlumne.curs", ""] }, regex: "4.*ESO", options: "i" } }, then: "4t ESO" },
+                                    { case: { $regexMatch: { input: { $ifNull: ["$extractedData.dadesAlumne.curs", ""] }, regex: "1.*BATX", options: "i" } }, then: "1r BATX" },
+                                    { case: { $regexMatch: { input: { $ifNull: ["$extractedData.dadesAlumne.curs", ""] }, regex: "2.*BATX", options: "i" } }, then: "2n BATX" }
+                                ],
+                                default: "ALTRES"
+                            }
+                        }
+                    }
+                },
+                { $group: { _id: "$normalizedCourse", count: { $sum: 1 } } },
                 { $sort: { _id: 1 } }
             ]),
-            Student.countDocuments({ centerCode: String(user.center_code) }) // Ahora cuenta los PIs (alumnos)
+            Student.countDocuments({ centerCode: centerCode })
         ]);
+
+        console.log(`✅ [${new Date().toISOString()}] Dashboard summary calculated: ${totalUsersCount} students`);
 
         res.json({
             piSummaryByType,
@@ -691,7 +1106,7 @@ app.get('/api/dashboard/summary', async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Error fetching dashboard summary:", error);
+        console.error("❌ Error fetching dashboard summary:", error);
         res.status(500).json({ error: 'Error al recuperar el resum del dashboard.' });
     }
 });
@@ -720,7 +1135,18 @@ app.get('/api/my-students', async (req, res) => {
             };
         }
 
-        const students = await Student.find(query);
+        const rawStudents = await Student.find(query).lean();
+        const students = rawStudents.map(student => {
+            const diagText = student.extractedData?.motiu?.diagnostic || "";
+            const matchedCategories = DIAGNOSTIC_MAPPINGS
+                .filter(m => new RegExp(m.r, 'i').test(diagText))
+                .map(m => m.k);
+
+            return {
+                ...student,
+                synthesizedCategories: matchedCategories.length > 0 ? matchedCategories : ["ALTRES"]
+            };
+        });
         res.json(students);
     } catch (error) {
         console.error(error);
