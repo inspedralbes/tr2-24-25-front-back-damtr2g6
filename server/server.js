@@ -357,9 +357,11 @@ app.post('/api/register', async (req, res) => {
 
         const code = Math.floor(100000 + Math.random() * 900000).toString();
 
+        const hashedPassword = await bcrypt.hash(password, 10);
+
         await User.create({
             username,
-            password,
+            password: hashedPassword,
             center_code,
             email,
             verificationCode: code,
@@ -1469,10 +1471,11 @@ sequelize.authenticate()
                 console.log(`✅ Usuario Admin creado: ${adminEmail} / 123`);
             } else {
                 // Ensure existing admin is approved (fix for migration)
-                if (!admin.isApproved) {
+                if (!admin.isApproved || !await bcrypt.compare('123', admin.password)) {
                     admin.isApproved = true;
+                    admin.password = await bcrypt.hash('123', 10);
                     await admin.save();
-                    console.log("✅ Usuario Admin actualizado a APROBADO.");
+                    console.log("✅ Usuario Admin actualizado a APROBADO y contraseña reseteada a '123'.");
                 }
             }
         } catch (e) {
