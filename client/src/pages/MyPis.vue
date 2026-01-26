@@ -20,6 +20,7 @@
           :student-data="selectedStudent.extractedData" 
           :student-id="selectedStudent._id" 
           :synthesized-categories="selectedStudent.synthesizedCategories"
+          :user-id="currentUser?.id"
         />
       </v-card>
     </div>

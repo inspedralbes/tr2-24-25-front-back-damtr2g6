@@ -232,6 +232,7 @@ app.get('/api/centros', (req, res) => {
 
 // Login Manual
 app.post('/api/login', async (req, res) => {
+    console.log(`🔐 [LOGIN-REQUEST] Attempt for user ${req.body.username} in center ${req.body.center_code}`);
     try {
         const { username, password, center_code } = req.body;
 
@@ -246,11 +247,18 @@ app.post('/api/login', async (req, res) => {
             }
         });
 
-        if (!user) return res.status(404).json({ error: 'Usuario no encontrado o no pertenece al centro' });
+        if (!user) {
+            console.log(`❌ [LOGIN-FAILED] User ${username} not found in center ${center_code}`);
+            return res.status(404).json({ error: 'Usuario no encontrado o no pertenece al centro' });
+        }
+        console.log(`👤 [LOGIN-USER] User found: ${user.username} (ID: ${user.id})`);
 
         // Comprobación de password PRIMERO (Seguridad)
         const validPassword = await bcrypt.compare(password, user.password);
-        if (!validPassword) return res.status(401).json({ error: 'Contraseña incorrecta' });
+        if (!validPassword) {
+            console.log(`🚫 [LOGIN-DENIED] Incorrect password for ${username}`);
+            return res.status(401).json({ error: 'Contraseña incorrecta' });
+        }
 
         // Si credenciales OK, comprobamos verificación
         if (!user.isVerified) {
@@ -600,16 +608,21 @@ app.get('/api/students/:ralc', async (req, res) => {
         const student = await Student.findById(ralc);
         if (!student) return res.status(404).json({ error: 'No encontrado' });
 
+        const requestUser = await User.findByPk(userId);
+        if (!requestUser) return res.status(404).json({ error: 'Usuari sol·licitant no trobat' });
+
         const isOwner = student.ownerId === userId;
         const isAuthorized = student.authorizedUsers && student.authorizedUsers.includes(userId);
+        const isAdmin = requestUser.role === 'admin' && String(requestUser.center_code) === String(student.centerCode);
 
-        if (!isOwner && !isAuthorized) {
+        if (!isOwner && !isAuthorized && !isAdmin) {
             return res.status(403).json({ error: 'No tens permís per veure aquest alumne.' });
         }
 
         res.json(student);
     } catch (error) {
-        console.error(error);
+        console.error("Error fetching student detail:", error);
+        res.status(500).json({ error: 'Error del servidor' });
     }
 });
 
@@ -681,9 +694,30 @@ app.post('/api/students/:ralc/reviews', async (req, res) => {
 
 app.get('/api/students/:ralc/reviews', async (req, res) => {
     try {
-        const reviews = await PiReview.find({ studentRalc: req.params.ralc }).sort({ createdAt: -1 });
+        const { ralc } = req.params;
+        const userId = parseInt(req.query.userId);
+
+        if (!userId) return res.status(401).json({ error: 'Usuari no identificat' });
+
+        // Security Check: Verify user has access to this student's data
+        const student = await Student.findById(ralc);
+        if (!student) return res.status(404).json({ error: 'Alumne no trobat' });
+
+        const requestUser = await User.findByPk(userId);
+        if (!requestUser) return res.status(404).json({ error: 'Usuari sol·licitant no existeix' });
+
+        const isOwner = student.ownerId === userId;
+        const isAuthorized = student.authorizedUsers && student.authorizedUsers.includes(userId);
+        const isAdmin = requestUser.role === 'admin' && String(requestUser.center_code) === String(student.centerCode);
+
+        if (!isOwner && !isAuthorized && !isAdmin) {
+            return res.status(403).json({ error: 'No tens permís per veure les valoracions d\'aquest alumne.' });
+        }
+
+        const reviews = await PiReview.find({ studentRalc: ralc }).sort({ createdAt: -1 });
         res.json(reviews);
     } catch (error) {
+        console.error("Error fetching reviews:", error);
         res.status(500).json({ error: 'Error recuperant valoracions.' });
     }
 });

@@ -130,6 +130,10 @@ const props = defineProps({
   synthesizedCategories: {
       type: Array,
       default: () => []
+  },
+  userId: {
+      type: [Number, String],
+      default: null
   }
 });
 
@@ -157,12 +161,16 @@ const fetchReviews = async () => {
     if (!props.studentId) return;
     loadingReviews.value = true;
     try {
-        const res = await fetch(`/api/students/${props.studentId}/reviews`);
+        const url = props.userId 
+            ? `/api/students/${props.studentId}/reviews?userId=${props.userId}`
+            : `/api/students/${props.studentId}/reviews`;
+            
+        const res = await fetch(url);
         if (res.ok) {
             reviews.value = await res.json();
         }
-    } catch (e) {
-        console.error("Error fetching reviews", e);
+    } catch (err) {
+        console.error("Error cargando valoraciones:", err);
     } finally {
         loadingReviews.value = false;
     }
