@@ -455,7 +455,7 @@ const getColorForStatus = (status) =>
     processing: "orange",
     completed: "success",
     failed: "error",
-  }[status] || "grey");
+  })[status] || "grey";
 
 const translateStatus = (status) => {
   const map = {

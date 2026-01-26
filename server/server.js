@@ -222,6 +222,7 @@ const transporter = nodemailer.createTransport({
 
 // Endpoint obtener centros
 app.get('/api/centros', (req, res) => {
+    console.log('API /api/centros - Cache length:', centrosDataCache.length);
     if (centrosDataCache.length > 0) {
         res.json(centrosDataCache);
     } else {
@@ -365,9 +366,11 @@ app.post('/api/register', async (req, res) => {
 
         const code = Math.floor(100000 + Math.random() * 900000).toString();
 
+        const hashedPassword = await bcrypt.hash(password, 10);
+
         await User.create({
             username,
-            password,
+            password: hashedPassword,
             center_code,
             email,
             verificationCode: code,
@@ -657,6 +660,50 @@ app.delete('/api/students/:ralc', async (req, res) => {
     } catch (error) {
         console.error("Error deleting student:", error);
         res.status(500).json({ error: 'Error del servidor al eliminar expedient.' });
+    }
+});
+
+// ==========================================
+// RUTA DE SUBIDA DE ARCHIVOS (WORKER)
+// ==========================================
+app.post('/api/upload', upload.single('file'), async (req, res) => {
+    try {
+        const { userId } = req.body;
+        if (!req.file) {
+            return res.status(400).json({ error: 'No se ha subido ningún archivo.' });
+        }
+        if (!userId) {
+            return res.status(400).json({ error: 'Falta el ID del usuario.' });
+        }
+
+        console.log(`📥 Archivo recibido: ${req.file.originalname} (Usuario: ${userId})`);
+
+        // 1. Crear un 'Job' en MongoDB para seguir el estado
+        const job = await Job.create({
+            userId: userId,
+            filename: req.file.originalname,
+            filePath: req.file.path,
+            status: 'queued',
+            result: null
+        });
+
+        // 2. Enviar el trabajo a la cola de RabbitMQ
+        const jobData = {
+            jobId: job._id,
+            filePath: req.file.path,
+            originalFileName: req.file.originalname,
+            userId: userId
+        };
+
+        channel.sendToQueue('pi_processing_queue', Buffer.from(JSON.stringify(jobData)), { persistent: true });
+
+        console.log(`✅ Trabajo ${job._id} encolado para ${req.file.originalname}`);
+
+        // 3. Responder inmediatamente al cliente con el ID del trabajo
+        res.status(202).json({ message: 'Archivo recibido y en cola para procesar.', jobId: job._id });
+    } catch (error) {
+        console.error('❌ Error en /api/upload:', error);
+        res.status(500).json({ error: 'Error interno al procesar la subida.' });
     }
 });
 
@@ -1393,55 +1440,6 @@ app.put('/api/center/users/:id/approve', async (req, res) => {
     }
 });
 
-app.post('/upload', upload.single('piFile'), async (req, res) => {
-    if (!req.file) return res.status(400).send('No file uploaded.');
-    if (!channel) return res.status(500).send('RabbitMQ channel not established.');
-
-    const { userId } = req.body; // Suponiendo que el userId viene en el body
-    if (!userId) {
-        fs.unlinkSync(req.file.path); // Limpiar archivo temporal si no hay userId
-        return res.status(400).send('User ID is required.');
-    }
-
-    const jobId = new mongoose.Types.ObjectId(); // Generar un ObjectId para el jobId
-    const filePath = req.file.path;
-    const originalFileName = req.file.originalname;
-
-    try {
-        // Guardar el estado inicial del trabajo en MongoDB
-        const newJob = new Job({
-            _id: jobId,
-            userId: userId,
-            filename: originalFileName,
-            filePath: filePath, // Guardamos la ruta temporal del archivo
-            status: 'queued',
-            uploadedAt: new Date(),
-        });
-        await newJob.save();
-
-        // Enviar mensaje a RabbitMQ
-        const message = {
-            jobId: jobId.toHexString(),
-            filePath: filePath,
-            originalFileName: originalFileName,
-            userId: userId,
-        };
-        channel.sendToQueue('pi_processing_queue', Buffer.from(JSON.stringify(message)), { persistent: true });
-        console.log(`✅ Trabajo ${jobId} encolado para el archivo ${originalFileName} `);
-
-        res.status(202).json({
-            message: 'Archivo subido y encolado para procesamiento.',
-            jobId: jobId.toHexString(),
-            filename: originalFileName,
-            status: 'queued'
-        });
-    } catch (error) {
-        console.error('❌ Error al encolar el trabajo:', error);
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath); // Limpiar en caso de error
-        res.status(500).send('Error al procesar la subida del archivo.');
-    }
-});
-
 app.get('/api/jobs/:jobId', async (req, res) => {
     try {
         const { jobId } = req.params;
@@ -1503,10 +1501,11 @@ sequelize.authenticate()
                 console.log(`✅ Usuario Admin creado: ${adminEmail} / 123`);
             } else {
                 // Ensure existing admin is approved (fix for migration)
-                if (!admin.isApproved) {
+                if (!admin.isApproved || !await bcrypt.compare('123', admin.password)) {
                     admin.isApproved = true;
+                    admin.password = await bcrypt.hash('123', 10);
                     await admin.save();
-                    console.log("✅ Usuario Admin actualizado a APROBADO.");
+                    console.log("✅ Usuario Admin actualizado a APROBADO y contraseña reseteada a '123'.");
                 }
             }
         } catch (e) {

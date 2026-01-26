@@ -141,6 +141,7 @@
                   class="ml-2"
                   @click="confirmDelete(item)"
                 >
+                  <v-icon>mdi-delete</v-icon>
                 </v-btn>
               </template>
             </v-tooltip>
