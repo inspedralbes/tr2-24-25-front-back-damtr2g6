@@ -326,7 +326,7 @@ const currentUser = ref(null);
 const filesToUpload = ref([]);
 const isLoading = ref(false);
 const error = ref(null);
-const apiUrl = "/upload";
+const apiUrl = "/api/upload";
 
 const detailsDialog = ref(false);
 const selectedUpload = ref(null);
@@ -366,7 +366,7 @@ const uploadFiles = async () => {
     uploadStore.addUpload(newUpload);
 
     const formData = new FormData();
-    formData.append("piFile", file);
+    formData.append("file", file);
     formData.append("userId", currentUser.value.id);
 
     try {
