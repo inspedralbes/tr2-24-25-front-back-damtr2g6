@@ -222,6 +222,7 @@ const transporter = nodemailer.createTransport({
 
 // Endpoint obtener centros
 app.get('/api/centros', (req, res) => {
+    console.log('API /api/centros - Cache length:', centrosDataCache.length);
     if (centrosDataCache.length > 0) {
         res.json(centrosDataCache);
     } else {
@@ -667,7 +668,8 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
         // 1. Crear un 'Job' en MongoDB para seguir el estado
         const job = await Job.create({
             userId: userId,
-            fileName: req.file.originalname,
+            filename: req.file.originalname,
+            filePath: req.file.path,
             status: 'queued',
             result: null
         });
@@ -1487,4 +1489,3 @@ sequelize.authenticate()
             console.log(`⚠️ Servidor (MODO SIN DB) activo en puerto ${port}`);
         });
     });
-                            cond: { $regexMatch: { input: { $ifNull: ["$extract
