@@ -1,0 +1,8 @@
+# Este archivo evita que Docker copie ficheros innecesarios al construir la imagen,
+# haciendo el proceso más rápido y la imagen final más ligera y segura.
+
+node_modules
+npm-debug.log
+.env
+.git
+.gitignore

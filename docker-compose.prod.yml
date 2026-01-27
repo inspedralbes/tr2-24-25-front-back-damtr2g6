@@ -1,0 +1,94 @@
+# docker-compose.prod.yml
+# Este archivo orquesta todos los servicios necesarios para producción.
+
+version: '3.8'
+
+services:
+  # Servicio de la API principal (server.js)
+  api:
+    build:
+      context: ./server # Directorio donde está el código del servidor
+      dockerfile: Dockerfile.prod # El Dockerfile de producción que hemos creado
+    container_name: prod_api_server
+    restart: unless-stopped
+    ports:
+      - "4000:4000" # Mapea el puerto 4000 del host al 4000 del contenedor
+      - "4001:4001" # Puerto para WebSockets
+    env_file:
+      - ./.env # Carga las variables de entorno desde este archivo
+    depends_on:
+      - mysql
+      - mongodb
+      - rabbitmq
+    networks:
+      - app-network
+
+  # Servicio del Worker (worker.js)
+  worker:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.prod
+    container_name: prod_worker
+    restart: unless-stopped
+    command: ["node", "worker.js"] # Sobrescribimos el CMD para ejecutar el worker
+    env_file:
+      - ./.env
+    depends_on:
+      - mongodb
+      - rabbitmq
+      - ollama
+    networks:
+      - app-network
+
+  # Base de datos MySQL/MariaDB para Sequelize
+  mysql:
+    image: mysql:8.0
+    container_name: prod_mysql_db
+    restart: unless-stopped
+    env_file:
+      - ./.env # Debería contener MYSQL_ROOT_PASSWORD, MYSQL_DATABASE, etc.
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - app-network
+
+  # Base de datos MongoDB para Mongoose
+  mongodb:
+    image: mongo:6.0
+    container_name: prod_mongodb
+    restart: unless-stopped
+    env_file:
+      - ./.env # Debería contener MONGO_INITDB_ROOT_USERNAME y MONGO_INITDB_ROOT_PASSWORD
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - app-network
+
+  # Cola de mensajes RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3.11-management
+    container_name: prod_rabbitmq
+    restart: unless-stopped
+    env_file:
+      - ./.env # Debería contener RABBITMQ_DEFAULT_USER y RABBITMQ_DEFAULT_PASS
+    ports:
+      - "15672:15672" # Interfaz de gestión de RabbitMQ
+    networks:
+      - app-network
+
+  # Servicio de IA Ollama
+  ollama:
+    image: ollama/ollama # Asumiendo que usas la imagen oficial
+    container_name: prod_ollama
+    restart: unless-stopped
+    # Aquí irían configuraciones adicionales para Ollama si son necesarias (volúmenes para modelos, etc.)
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  mysql-data:
+  mongo-data:

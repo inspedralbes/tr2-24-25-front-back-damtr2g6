@@ -1,0 +1,42 @@
+# Dockerfile para producción
+
+# ---- Etapa Base ----
+# Usamos una versión específica de Node.js para asegurar la reproducibilidad.
+# La versión 'slim' es más pequeña que la completa, ideal para producción.
+FROM node:20-slim AS base
+
+# Establecemos el directorio de trabajo dentro del contenedor
+WORKDIR /usr/src/app
+
+# Configuramos el entorno a 'production'.
+# Esto hace que Express y otras librerías se optimicen para rendimiento y seguridad.
+ENV NODE_ENV=production
+
+
+# ---- Etapa de Dependencias ----
+# Esta etapa se dedica únicamente a instalar las dependencias de npm.
+# Al separarla, aprovechamos el cache de Docker: si no cambias package.json, esta capa no se reconstruye.
+FROM base AS deps
+# Copiamos los archivos que definen el proyecto y sus dependencias
+COPY package.json package-lock.json* ./
+# Usamos 'npm ci' que es más rápido y estricto que 'npm install', ideal para builds de producción.
+# '--only=production' asegura que solo se instalen las dependencias necesarias para funcionar, no las de desarrollo.
+RUN npm ci --only=production
+
+
+# ---- Etapa Final (Runner) ----
+# Esta es la imagen final que se ejecutará en producción.
+FROM base AS runner
+# Copiamos las dependencias ya instaladas desde la etapa 'deps'
+COPY --from=deps /usr/src/app/node_modules ./node_modules
+# Copiamos el resto del código de nuestra aplicación (server.js, extractor.js, etc.)
+COPY . .
+
+# Por seguridad, no es recomendable ejecutar procesos como 'root' dentro del contenedor.
+# Creamos un usuario sin privilegios y lo usamos para ejecutar la aplicación.
+RUN useradd --create-home appuser
+USER appuser
+
+# El comando por defecto que se ejecutará al iniciar el contenedor.
+# En este caso, iniciamos el servidor principal. El worker se iniciará con otro comando en docker-compose.
+CMD ["node", "server.js"]
