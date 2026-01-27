@@ -255,10 +255,14 @@ app.post('/api/login', async (req, res) => {
         console.log(`👤 [LOGIN-USER] User found: ${user.username} (ID: ${user.id})`);
 
         // Comprobación de password PRIMERO (Seguridad)
+        // Comprobación de password PRIMERO (Seguridad)
         const validPassword = await bcrypt.compare(password, user.password);
         if (!validPassword) {
             console.log(`🚫 [LOGIN-DENIED] Incorrect password for ${username}`);
-            return res.status(401).json({ error: 'Contraseña incorrecta' });
+            // DEBUGGING: Remove in production
+            console.log(`Debug: Input password length: ${password.length}`);
+            console.log(`Debug: User ID: ${user.id}, Role: ${user.role}`);
+            return res.status(401).json({ error: 'Contraseña incorrecta' }); // << THIS IS LIKELY IT
         }
 
         // Si credenciales OK, comprobamos verificación
@@ -366,11 +370,9 @@ app.post('/api/register', async (req, res) => {
 
         const code = Math.floor(100000 + Math.random() * 900000).toString();
 
-        const hashedPassword = await bcrypt.hash(password, 10);
-
         await User.create({
             username,
-            password: hashedPassword,
+            password, // El modelo se encargará de hashear gracias al hook beforeCreate
             center_code,
             email,
             verificationCode: code,
@@ -716,13 +718,11 @@ app.post('/api/students/:ralc/reviews', async (req, res) => {
         const { ralc } = req.params;
         const { userId, rating, comment, effectiveness } = req.body;
 
-        // Basic Validation
         if (!userId || !rating) return res.status(400).json({ error: 'Falten dades obligatòries (userId, rating)' });
 
         const user = await User.findByPk(userId);
         if (!user) return res.status(404).json({ error: 'Usuari no trobat' });
 
-        // Create the review
         const newReview = await PiReview.create({
             studentRalc: ralc,
             authorId: userId,
@@ -1316,7 +1316,7 @@ app.get('/api/center/users', async (req, res) => {
         const users = await User.findAll({
             where: {
                 center_code: adminUser.center_code,
-                id: { [Op.ne]: userId } // Don't list yourself
+                id: { [Op.ne]: userId }
             },
             attributes: ['id', 'username', 'email', 'role', 'isVerified', 'isApproved', 'createdAt'] // Exclude password/verificationCode
         });
@@ -1488,11 +1488,10 @@ sequelize.authenticate()
             const adminEmail = 'hugocor0609@gmail.com';
             let admin = await User.findOne({ where: { email: adminEmail } });
             if (!admin) {
-                const hashedPassword = await bcrypt.hash('123', 10);
                 await User.create({
                     username: 'AdminPrueba',
                     email: adminEmail,
-                    password: hashedPassword,
+                    password: '123', // El modelo lo hasheará
                     center_code: '99999999',
                     role: 'admin',
                     isVerified: true,
@@ -1501,11 +1500,15 @@ sequelize.authenticate()
                 console.log(`✅ Usuario Admin creado: ${adminEmail} / 123`);
             } else {
                 // Ensure existing admin is approved (fix for migration)
-                if (!admin.isApproved || !await bcrypt.compare('123', admin.password)) {
+                // Comprobamos si necesita reseteo (si no es '123')
+                const needsReset = !await bcrypt.compare('123', admin.password);
+                if (!admin.isApproved || needsReset) {
                     admin.isApproved = true;
-                    admin.password = await bcrypt.hash('123', 10);
+                    if (needsReset) {
+                        admin.password = '123'; // El hook beforeUpdate lo hasheará
+                    }
                     await admin.save();
-                    console.log("✅ Usuario Admin actualizado a APROBADO y contraseña reseteada a '123'.");
+                    console.log("✅ Usuario Admin actualizado (Aprobado/Password reset).");
                 }
             }
         } catch (e) {

@@ -34,11 +34,7 @@ const PiReviewSchema = new mongoose.Schema({
     timestamps: true
 });
 
-/**
- * REQUISI MONGODB: Objectes imbricats i relacions
- * - Relació: studentRalc referencia a la col·lecció de Students.
- * - Objecte Imbricat: 'effectiveness' conté sub-camps per anàlisi detallat (3+ nivells en agregacions).
- */
+
 // Index for fast lookup of reviews by student
 PiReviewSchema.index({ studentRalc: 1 });
 
