@@ -59,6 +59,9 @@ Aquest sistema permet als centres educatius gestionar de manera eficient els Pla
 *   **Processament de Documents**: `mammoth` (Word a HTML), `textract`, `pdf-parse`.
 *   **Correu**: Nodemailer (Gmail SMTP).
 *   **Seguretat**: `bcrypt`, `cors`, `dotenv`.
+*   **Missatgeria**: `RabbitMQ`
+*   **IA**: `Ollama`
+
 
 ### **DevOps & Eines**
 *   **Docker & Docker Compose**: Per a la containerització de tots els serveis (Client, Server, Mongo, Ollama).
